@@ -1,0 +1,60 @@
+# Raw data and large external inputs
+data/
+dataset/
+**/*.mat
+**/*.sigmf*
+**/*.bin
+**/*.iq
+**/*.h5
+
+# Python environments and caches
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Local runtime logs
+*.log
+*.out
+*.err
+logs/
+**/logs/
+run_stdout.*
+run_stderr.*
+**/run_stdout.*
+**/run_stderr.*
+
+# Training artifacts and large generated arrays
+checkpoints/
+**/checkpoints/
+artifacts/
+**/artifacts/
+*.pth
+*.pt
+*.ckpt
+*.npy
+*.npz
+*.pkl
+*.joblib
+
+# Scratch and generated build outputs
+scratch/
+**/scratch/
+outputs/
+analysis_output/
+*.zip
+
+# Local notebook and editor state
+.vscode/
+.idea/
+*.tmp
+*.bak
+~$*
+
+# Keep compact experiment results trackable.
+# Small CSV/JSON/MD summaries under code/2nd/results are intentionally not ignored.
