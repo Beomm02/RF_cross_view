@@ -88,3 +88,22 @@ def build_all_views(iq_window: np.ndarray, config: dict) -> dict[str, np.ndarray
             log_magnitude=bool(stft_cfg["log_magnitude"]),
         ),
     }
+
+
+def build_view(iq_window: np.ndarray, view_name: str, config: dict) -> np.ndarray:
+    normalized = energy_normalize_iq_window(iq_window)
+    if view_name == "iq":
+        return build_iq_view(normalized)
+    if view_name == "ap":
+        return build_ap_view(normalized, phase_unwrap=bool(config["representations"]["phase_unwrap"]))
+    if view_name == "stft":
+        stft_cfg = config["representations"]["stft"]
+        return build_stft_view(
+            normalized,
+            n_fft=int(stft_cfg["n_fft"]),
+            win_length=int(stft_cfg["win_length"]),
+            hop_length=int(stft_cfg["hop_length"]),
+            window=str(stft_cfg["window"]),
+            log_magnitude=bool(stft_cfg["log_magnitude"]),
+        )
+    raise ValueError("view_name must be 'iq', 'ap', or 'stft'")

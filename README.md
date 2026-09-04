@@ -33,6 +33,12 @@ Phase 1 representation 확인 실행:
 python rf_multiview_relation/scripts/01_extract_views.py --config rf_multiview_relation/configs/default.yaml
 ```
 
+Phase 2 autoencoder pretraining 실행:
+
+```bash
+python rf_multiview_relation/scripts/02_train_autoencoders.py --config rf_multiview_relation/configs/default.yaml
+```
+
 Phase 0 로컬 산출물:
 
 ```text
@@ -52,6 +58,7 @@ outputs/splits/tx1_holdout_100_seed42.txt
 | --- | --- | --- |
 | Phase 0 Dataset Audit | 완료 | Tx1-Tx8 각 500 files, Tx1 train/calibration/holdout 320/80/100 split, Oracle 표준 SigMF 128 files |
 | Phase 1 Representation Check | 완료 | IQ `2x2048`, AP `2x2048`, STFT `1x128x31`, sample NaN/Inf 없음 |
+| Phase 2 Autoencoder | 구현 및 smoke 완료 | IQ/AP/STFT AE forward/backward/checkpoint 저장 확인, full 30 epoch 학습은 다음 단계 |
 
 Phase 1에서 생성된 sanity figure는 다음 로컬 경로에 저장된다.
 
@@ -63,6 +70,14 @@ outputs/tables/representation_examples.csv
 ```
 
 AP representation은 현재 기본값 `phase_unwrap: true`를 사용한다. 일부 window에서 unwrap phase가 크게 누적되므로, 메인 실험 이후 `phase_unwrap: false`는 ablation 후보로 둔다.
+
+Phase 2 smoke command:
+
+```bash
+python rf_multiview_relation/scripts/02_train_autoencoders.py --config rf_multiview_relation/configs/default.yaml --views iq ap stft --epochs 1 --batch-size 64 --max-train-files 1 --max-calibration-files 1 --run-name smoke
+```
+
+Smoke 결과에서 AP reconstruction loss가 IQ/STFT보다 매우 크게 나타났다. 이는 unwrap phase scale이 amplitude보다 훨씬 커지는 영향으로 보이며, 메인 학습은 명세대로 유지하되 이후 ablation에서 `phase_unwrap: false` 또는 AP channel scaling을 비교한다.
 
 ## 연구 목적
 

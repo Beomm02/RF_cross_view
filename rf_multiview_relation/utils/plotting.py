@@ -43,6 +43,38 @@ def save_stft_examples(examples: list[np.ndarray], path: str | Path) -> None:
     write_png(path, image)
 
 
+def save_loss_curves(rows: list[dict], path: str | Path) -> None:
+    if not rows:
+        return
+    views = sorted({str(row["view"]) for row in rows})
+    height = max(180, 140 * len(views))
+    width = 900
+    image = np.empty((height, width, 3), dtype=np.uint8)
+    image[:] = RGB_WHITE
+    panel_h = height // len(views)
+    for panel_idx, view in enumerate(views):
+        top = panel_idx * panel_h
+        bottom = min(height - 1, top + panel_h - 1)
+        view_rows = [row for row in rows if str(row["view"]) == view]
+        train = np.asarray([float(row["train_loss"]) for row in view_rows], dtype=np.float64)
+        val = np.asarray([float(row["calibration_loss"]) for row in view_rows], dtype=np.float64)
+        values = np.concatenate([train, val])
+        y_top = top + 18
+        y_bottom = bottom - 18
+        x_left = 36
+        x_right = width - 24
+        _draw_rect(image, x_left, y_top, x_right, y_bottom, RGB_GRAY)
+        _draw_horizontal(image, y_bottom, x_left, x_right, RGB_GRAY)
+        x_values = np.linspace(x_left, x_right, num=max(len(train), 1)).astype(np.int32)
+        if len(train) == 1:
+            x_values = np.asarray([(x_left + x_right) // 2], dtype=np.int32)
+        train_y = _values_to_y(train, values, y_top + 4, y_bottom - 4).astype(np.int32)
+        val_y = _values_to_y(val, values, y_top + 4, y_bottom - 4).astype(np.int32)
+        _draw_polyline_or_point(image, x_values, train_y, RGB_BLUE)
+        _draw_polyline_or_point(image, x_values, val_y, RGB_RED)
+    write_png(path, image)
+
+
 def write_png(path: str | Path, image: np.ndarray) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,6 +135,17 @@ def _series_to_y(series: np.ndarray, top: int, bottom: int) -> np.ndarray:
     return bottom - normalized * (bottom - top)
 
 
+def _values_to_y(values: np.ndarray, reference: np.ndarray, top: int, bottom: int) -> np.ndarray:
+    reference = np.asarray(reference, dtype=np.float64)
+    reference = np.nan_to_num(reference, nan=0.0, posinf=0.0, neginf=0.0)
+    low = float(np.min(reference))
+    high = float(np.max(reference))
+    if high <= low:
+        high = low + 1.0
+    normalized = (np.asarray(values, dtype=np.float64) - low) / (high - low)
+    return bottom - np.clip(normalized, 0.0, 1.0) * (bottom - top)
+
+
 def _draw_horizontal(image: np.ndarray, y: int, x0: int, x1: int, color: np.ndarray) -> None:
     if 0 <= y < image.shape[0]:
         image[y, max(0, x0) : min(image.shape[1], x1 + 1)] = color
@@ -120,6 +163,15 @@ def _draw_rect(image: np.ndarray, x0: int, y0: int, x1: int, y1: int, color: np.
 def _draw_polyline(image: np.ndarray, x_values: np.ndarray, y_values: np.ndarray, color: np.ndarray) -> None:
     for idx in range(len(x_values) - 1):
         _draw_line(image, int(x_values[idx]), int(y_values[idx]), int(x_values[idx + 1]), int(y_values[idx + 1]), color)
+
+
+def _draw_polyline_or_point(image: np.ndarray, x_values: np.ndarray, y_values: np.ndarray, color: np.ndarray) -> None:
+    if len(x_values) == 1:
+        x = int(x_values[0])
+        y = int(y_values[0])
+        image[max(0, y - 2) : min(image.shape[0], y + 3), max(0, x - 2) : min(image.shape[1], x + 3)] = color
+        return
+    _draw_polyline(image, x_values, y_values, color)
 
 
 def _draw_line(image: np.ndarray, x0: int, y0: int, x1: int, y1: int, color: np.ndarray) -> None:
