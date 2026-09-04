@@ -199,12 +199,12 @@ Planned scripts:
 
 | ID | Status | Purpose | Output to Track |
 | --- | --- | --- | --- |
-| CVR-00 | Planned | Manifest rebase for uploaded folder layout | manifest summary `.json` or `.csv` |
-| CVR-01 | Planned | Existing baseline smoke check after manifest rebase | compact metric `.csv` |
+| CVR-00 | Done | Manifest rebase for uploaded folder layout | `code\2nd\cross_view_relation\manifests` |
+| CVR-01 | Done | Exploratory representation screening | README summary and compact metric CSV |
 | CVR-02 | Planned | IQ/AP/FFT latent export from existing checkpoint | summary only, no latent arrays |
 | CVR-03 | Planned | Cross-view relation one-class scoring | file-level metric `.csv` |
-| CVR-04 | Planned | STFT representation screening | compact metric `.csv` |
-| CVR-05 | Planned | CCA/CKA relation diagnostics | compact table or README update |
+| CVR-04 | In CVR-01 | STFT representation screening | compact metric `.csv` |
+| CVR-05 | In CVR-01 | CCA/CKA relation diagnostics | compact table or README update |
 
 ## First Command
 
@@ -217,3 +217,111 @@ cd "C:\Users\Beomm\Desktop\project\모델 관련 자료\project\code\2nd"
 
 The first implementation task is `CVR-00`: create a manifest rebase script that preserves the existing Tx1 split by basename and writes new manifests under the cross-view experiment area.
 
+## CVR-00 Manifest Rebase Result
+
+Manifest rebase completed with zero missing Tx1 basenames.
+
+| Manifest | Count |
+| --- | ---: |
+| `tx1_train_80_seed42_rebased.txt` | 399 |
+| `tx1_test_20_seed42_rebased.txt` | 100 |
+| `tx2_all_rebased.txt` | 500 |
+| `tx3_all_rebased.txt` | 500 |
+| `tx4_all_rebased.txt` | 500 |
+| `tx5_all_rebased.txt` | 500 |
+| `tx6_all_rebased.txt` | 500 |
+| `tx7_all_rebased.txt` | 500 |
+| `tx8_all_rebased.txt` | 500 |
+
+## CVR-01 Exploratory Screening Setup
+
+This first screen is not a final model-selection result. It is a feasibility diagnostic for the follow-up idea.
+
+Fitting used Tx1 train-normal only. Tx1 holdout and Tx2-Tx8 were used only after fitting for exploratory evaluation.
+
+Run profile:
+
+| Item | Value |
+| --- | --- |
+| Tx1 train files | 128 sampled from rebased train manifest |
+| Tx1 holdout files | 80 sampled from rebased test manifest |
+| Tx2-Tx8 anomaly files | 80 per device |
+| windows per file | 16 |
+| window size / stride | 2048 / 1024 |
+| score threshold | train-normal p95 |
+| scoring methods | diagonal z-distance, PCA residual |
+| CCA/CKA input | Tx1 train-normal only |
+
+Representations screened:
+
+- IQ summary statistics
+- amplitude/phase statistics
+- FFT log-magnitude summary
+- STFT log-magnitude summary
+- cepstral coefficients from FFT log magnitude followed by DCT
+- cyclostationary spectral-correlation proxy
+- higher-order statistics and cumulants
+- reduced-grid bispectrum proxy
+
+The cyclostationary and bispectrum implementations are intentionally lightweight proxies for the first screen. They are meant to test whether signal exists before adding a heavier full spectral-correlation or dense bispectrum estimator.
+
+## CVR-01 Representation Screening Result
+
+Ranking by file-level AUC:
+
+| Rank | Representation | Method | AUC | Min Tx AUC | F1 | FP / 80 normal | FN / 560 anomaly |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | Cyclostationary proxy | PCA residual | 0.614241 | 0.531563 | 0.440217 | 14 | 398 |
+| 2 | FFT | z-distance | 0.566540 | 0.533594 | 0.178914 | 10 | 504 |
+| 3 | Bispectrum proxy | z-distance | 0.550982 | 0.498281 | 0.220126 | 6 | 490 |
+| 4 | AP | PCA residual | 0.544464 | 0.512656 | 0.340058 | 16 | 442 |
+| 5 | Bispectrum proxy | PCA residual | 0.536629 | 0.465625 | 0.696872 | 44 | 237 |
+
+Interpretation:
+
+- The strongest single representation in the more stable run was the cyclostationary spectral-correlation proxy, but the AUC is still modest.
+- AP looked much stronger in the smaller 64-train-file screen, reaching AUC 0.763707, but that signal weakened when the Tx1 train sample was increased to 128 files. This means the AP result should be treated as unstable for now.
+- F1 is not the primary criterion here because the exploratory evaluation has many more anomaly files than normal files. AUC and Tx1 holdout false positives are more informative.
+- No single handcrafted representation is strong enough yet to claim a new method. The useful signal is more likely in cross-view relation or fusion.
+
+## CVR-01 CKA / CCA Result
+
+Highest linear CKA pairs on Tx1 train-normal:
+
+| Pair | Linear CKA | Split-half CCA mean5 |
+| --- | ---: | ---: |
+| STFT / Cepstral | 0.867930 | 0.840709 |
+| FFT / STFT | 0.805816 | 0.851743 |
+| FFT / Cepstral | 0.783354 | 0.927945 |
+| AP / Cyclostationary proxy | 0.775124 | 0.759429 |
+| AP / Cepstral | 0.708757 | 0.806135 |
+
+Lowest linear CKA pairs on Tx1 train-normal:
+
+| Pair | Linear CKA | Split-half CCA mean5 |
+| --- | ---: | ---: |
+| IQ / Bispectrum proxy | 0.259008 | 0.486570 |
+| IQ / Cyclostationary proxy | 0.298461 | 0.493240 |
+| IQ / STFT | 0.307034 | 0.426254 |
+| IQ / HOS cumulants | 0.310686 | 0.916320 |
+| IQ / Cepstral | 0.329354 | 0.636425 |
+
+Interpretation:
+
+- FFT, STFT, and cepstral features are highly redundant. They should not all be treated as independent evidence without a relation/fusion control.
+- AP and cyclostationary proxy have high CKA and were also among the more promising screening signals, so their relationship is a strong first cross-view candidate.
+- IQ with bispectrum or cyclostationary proxy has low CKA, suggesting possible complementary information.
+- Split-half CCA remains high for several pairs, so CCA should be used as a diagnostic rather than proof of anomaly separability.
+
+## CVR-01 Decision
+
+The follow-up topic is researchable, but not yet proven.
+
+The next experiment should move from single-representation screening to explicit cross-view relation scoring. The first candidates are:
+
+- AP with cyclostationary proxy
+- IQ with bispectrum proxy
+- IQ with cyclostationary proxy
+- FFT/STFT/cepstral as a controlled redundant frequency group
+
+The next scoring features should include cosine distance, absolute difference, elementwise product, PCA residual, and train-normal Mahalanobis-style distance fitted only on Tx1 train-normal.

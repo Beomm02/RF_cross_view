@@ -58,3 +58,5 @@ analysis_output/
 
 # Keep compact experiment results trackable.
 # Small CSV/JSON/MD summaries under code/2nd/results are intentionally not ignored.
+code/2nd/results/cross_view_relation/**/sampled_files.csv
+code/2nd/results/cross_view_relation/**/run_config.json
