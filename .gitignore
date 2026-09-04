@@ -7,6 +7,10 @@ dataset/
 **/*.iq
 **/*.h5
 
+# Source modules named data are code, not raw datasets.
+!rf_multiview_relation/data/
+!rf_multiview_relation/data/*.py
+
 # Python environments and caches
 .venv/
 **/.venv/

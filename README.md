@@ -1,19 +1,60 @@
 # RF Cross-View Feature Relation Study
 
+## 현재 연구 기준
+
+2026-09-04부터 본 저장소의 메인 연구 기준은 다음 주제로 전환한다.
+
+```text
+Multi-View Representation 관계를 활용한 RF 송신 장치 이상 탐지
+```
+
+핵심 질문은 Tx1 정상 데이터에서 IQ/AP/STFT representation 사이의 관계 구조가 안정적으로 존재하는지, 그리고 Tx2-Tx8 및 Oracle SigMF가 그 Tx1 relation distribution에서 벗어나는지를 확인하는 것이다.
+
+메인 구현 위치:
+
+```text
+rf_multiview_relation/
+```
+
+초기 문서:
+
+- `CURRENT_CODE_AUDIT.md`
+- `IMPLEMENTATION_PLAN.md`
+
+Phase 0 데이터 감사 실행:
+
+```bash
+python rf_multiview_relation/scripts/00_audit_dataset.py --config rf_multiview_relation/configs/default.yaml
+```
+
+Phase 0 로컬 산출물:
+
+```text
+outputs/dataset_audit.json
+outputs/tables/dataset_audit_devices.csv
+outputs/tables/dataset_audit_oracle.csv
+outputs/splits/tx1_train_320_seed42.txt
+outputs/splits/tx1_calibration_80_seed42.txt
+outputs/splits/tx1_holdout_100_seed42.txt
+```
+
+위 산출물은 `outputs/` 아래에 생성되며 GitHub에는 업로드하지 않는다.
+
 ## 연구 목적
 
 이 저장소는 RF IQ 원본 신호에서 여러 representation을 만들고, 정상 RF와 unseen/anomaly RF 사이에서 representation 간 관계성이 달라지는지 확인하기 위한 실험 기록이다.
 
 현재 핵심 질문은 다음 두 가지다.
 
-1. 정상 RF, 즉 Tx1-Tx4에서 서로 다른 representation 사이에 일정한 관계가 존재하는가?
-2. Anomaly RF, 즉 학습에 쓰지 않은 Tx5-Tx8이 들어오면 그 관계의 차이로 구분할 수 있는가?
+1. 정상 RF, 즉 Tx1에서 서로 다른 representation 사이에 일정한 관계가 존재하는가?
+2. Tx2-Tx8 또는 Oracle external RF가 들어오면 Tx1 relation distribution과의 차이로 구분할 수 있는가?
 
 ## 평가 원칙
 
-- Train/calibration에는 Tx1-Tx4 known-normal train만 사용한다.
-- Tx5-Tx8은 fitting, feature 선택, threshold 결정, score normalization에 사용하지 않는다.
-- Tx1-Tx4 holdout은 known-normal test로만 사용한다.
+- Train/calibration에는 Tx1만 사용한다.
+- Tx2-Tx8은 fitting, feature 선택, threshold 결정, score normalization에 사용하지 않는다.
+- Oracle SigMF는 external anomaly evaluation에만 사용한다.
+- Tx1 holdout은 normal test로만 사용한다.
 - 최종 평가는 file-level로만 본다.
 - 이 결과는 unseen-transmitter detection 실험이며, receiver/channel/distance robustness로 해석하지 않는다.
 - 실험 로그, raw data, checkpoint, feature cache, `.npy`, `.npz`는 GitHub에 올리지 않는다.
@@ -84,6 +125,8 @@ code\2nd\.venv\Scripts\python.exe
 ```
 
 ## 현재 실험
+
+현재 메인 실험은 `rf_multiview_relation/`에서 새로 진행한다. 아래 내용은 2026-09-04 이전에 수행한 Tx1-Tx4 known-normal open-set relation 실험 기록이다.
 
 이번 실험은 Tx1-Tx4를 known-normal로 두고, Tx5-Tx8을 학습에서 보지 않은 unseen/anomaly 송신기로 두는 open-set relation 실험이다.
 

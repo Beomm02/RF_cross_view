@@ -1,0 +1,9 @@
+# Optional representation overrides can be placed here and merged by future scripts.
+representations:
+  phase_unwrap: true
+  stft:
+    n_fft: 128
+    win_length: 128
+    hop_length: 64
+    window: hann
+    log_magnitude: true

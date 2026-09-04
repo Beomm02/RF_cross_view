@@ -1,0 +1,52 @@
+seed: 42
+
+paths:
+  data_root: data
+  outputs: outputs
+
+data:
+  mat_key: rxData
+  normal_device: Tx1
+  anomaly_devices: [Tx2, Tx3, Tx4, Tx5, Tx6, Tx7, Tx8]
+  oracle_dir: oracle
+  window_size: 2048
+  stride: 1024
+  max_windows_per_file: 256
+  tx1_train_files: 400
+  tx1_fit_files: 320
+  tx1_calibration_files: 80
+  tx1_holdout_files: 100
+  norm_mode: power
+  value_check_files_per_device: 3
+
+representations:
+  iq: true
+  ap: true
+  stft: true
+  phase_unwrap: true
+  stft:
+    n_fft: 128
+    win_length: 128
+    hop_length: 64
+    window: hann
+    log_magnitude: true
+
+model:
+  latent_dim: 64
+  epochs: 30
+  batch_size: 128
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  early_stopping: 5
+
+cca:
+  n_components: 16
+  scale: true
+
+relation:
+  mode: signed_residual
+  covariance: ledoit_wolf
+
+scoring:
+  file_percentile: 60
+  threshold_percentile: 95
