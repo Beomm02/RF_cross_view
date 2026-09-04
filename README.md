@@ -27,6 +27,12 @@ Phase 0 데이터 감사 실행:
 python rf_multiview_relation/scripts/00_audit_dataset.py --config rf_multiview_relation/configs/default.yaml
 ```
 
+Phase 1 representation 확인 실행:
+
+```bash
+python rf_multiview_relation/scripts/01_extract_views.py --config rf_multiview_relation/configs/default.yaml
+```
+
 Phase 0 로컬 산출물:
 
 ```text
@@ -39,6 +45,24 @@ outputs/splits/tx1_holdout_100_seed42.txt
 ```
 
 위 산출물은 `outputs/` 아래에 생성되며 GitHub에는 업로드하지 않는다.
+
+## 현재 진행 상태
+
+| Phase | 상태 | 핵심 확인 |
+| --- | --- | --- |
+| Phase 0 Dataset Audit | 완료 | Tx1-Tx8 각 500 files, Tx1 train/calibration/holdout 320/80/100 split, Oracle 표준 SigMF 128 files |
+| Phase 1 Representation Check | 완료 | IQ `2x2048`, AP `2x2048`, STFT `1x128x31`, sample NaN/Inf 없음 |
+
+Phase 1에서 생성된 sanity figure는 다음 로컬 경로에 저장된다.
+
+```text
+outputs/figures/example_iq.png
+outputs/figures/example_ap.png
+outputs/figures/example_stft.png
+outputs/tables/representation_examples.csv
+```
+
+AP representation은 현재 기본값 `phase_unwrap: true`를 사용한다. 일부 window에서 unwrap phase가 크게 누적되므로, 메인 실험 이후 `phase_unwrap: false`는 ablation 후보로 둔다.
 
 ## 연구 목적
 
