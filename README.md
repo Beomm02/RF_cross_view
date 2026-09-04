@@ -215,6 +215,7 @@ Planned scripts:
 | CVR-03 | Done | Cross-view relation one-class scoring | file-level metric `.csv` |
 | CVR-04 | In CVR-01 | STFT representation screening | compact metric `.csv` |
 | CVR-05 | In CVR-01 | CCA/CKA relation diagnostics | compact table or README update |
+| CVR-06 | Done | Train-normal rank-calibrated relation fusion | file-level metric `.csv` |
 
 ## First Command
 
@@ -396,3 +397,84 @@ The next candidate should combine:
 - a redundancy-controlled frequency group rather than separate FFT/STFT/Cepstral relation scores.
 
 The next fitting method should add shrinkage covariance or robust rank calibration using Tx1 train-normal only.
+
+## CVR-06 Rank-Calibrated Relation Fusion Setup
+
+This experiment tests whether the best single score and the strongest relation scores become more useful after train-normal empirical-rank calibration.
+
+All calibration used Tx1 train-normal only.
+
+Components:
+
+- Cyclostationary proxy PCA residual
+- AP / Cyclostationary relation PCA residual
+- IQ / Cyclostationary relation PCA residual
+- IQ / Bispectrum relation z-distance
+
+Fusion methods:
+
+- rank mean
+- rank max
+- rank top-2 mean
+- cyclostationary-weighted rank fusion
+
+Run profile:
+
+| Item | Value |
+| --- | --- |
+| Tx1 train files | 128 sampled from rebased train manifest |
+| Tx1 holdout files | 80 sampled from rebased test manifest |
+| Tx2-Tx8 anomaly files | 80 per device |
+| windows per file | 16 |
+| component calibration | empirical rank against Tx1 train-normal |
+| score threshold | fused Tx1 train-normal p95 |
+
+## CVR-06 Rank-Calibrated Relation Fusion Result
+
+Fusion ranking:
+
+| Rank | Fusion | AUC | Min Tx AUC | F1 | FP / 80 normal | FN / 560 anomaly |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | rank mean | 0.635469 | 0.525547 | 0.402219 | 16 | 415 |
+| 2 | cyclostationary-weighted rank | 0.633382 | 0.528203 | 0.427793 | 17 | 403 |
+| 3 | rank max | 0.625904 | 0.534141 | 0.435724 | 18 | 399 |
+| 4 | rank top-2 mean | 0.622768 | 0.511797 | 0.434316 | 24 | 398 |
+
+Best component comparison:
+
+| Score | AUC | F1 | FP / 80 normal | FN / 560 anomaly |
+| --- | ---: | ---: | ---: | ---: |
+| Cyclostationary proxy PCA residual | 0.614241 | 0.440217 | 14 | 398 |
+| AP / Cyclostationary relation PCA residual | 0.610402 | 0.479791 | 23 | 376 |
+| IQ / Cyclostationary relation PCA residual | 0.605446 | 0.403315 | 18 | 414 |
+| IQ / Bispectrum relation z-distance | 0.569129 | 0.195827 | 2 | 499 |
+
+Per-device AUC for the best fusion, rank mean:
+
+| Device | AUC |
+| --- | ---: |
+| Tx2 | 0.615859 |
+| Tx3 | 0.758516 |
+| Tx4 | 0.533438 |
+| Tx5 | 0.707422 |
+| Tx6 | 0.659687 |
+| Tx7 | 0.647813 |
+| Tx8 | 0.525547 |
+
+Interpretation:
+
+- Rank-calibrated fusion improved AUC over the best single component, from 0.614241 to 0.635469.
+- The improvement is modest but directionally useful, so cross-view relation features should remain in the follow-up study.
+- Tx4 and Tx8 remain weak cases, which prevents any strong claim at this stage.
+- The best current direction is not relation-only detection. It is calibrated fusion of a cyclostationary single score with selected cross-view relation scores.
+
+## CVR-06 Decision
+
+The next experiment should scale the same protocol before adding more complex modeling.
+
+Recommended next steps:
+
+- run the rank-calibrated fusion on the full preserved 399/100 split and all Tx2-Tx8 files,
+- compare p90, p95, and p97 train-normal thresholds,
+- add shrinkage covariance scoring for the relation feature space,
+- keep Tx4 and Tx8 as explicit failure-analysis targets.
