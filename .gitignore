@@ -60,3 +60,4 @@ analysis_output/
 # Small CSV/JSON/MD summaries under code/2nd/results are intentionally not ignored.
 code/2nd/results/cross_view_relation/**/sampled_files.csv
 code/2nd/results/cross_view_relation/**/run_config.json
+code/2nd/cross_view_relation/manifests/manifest_summary.json

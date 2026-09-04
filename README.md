@@ -98,6 +98,16 @@ Current split files:
 
 The uploaded manifest paths currently point to an older absolute root, so the first housekeeping task is to rebuild or rebase manifests against the current `data/` folder while preserving the same Tx1 train/test basenames.
 
+Data check after adding the missing Tx1 file:
+
+| Item | Result |
+| --- | --- |
+| Tx1 file count | 500 |
+| Missing Tx1 iter numbers | none |
+| Added file | `RFF_Tx_ANTSDR_1_Boot_01_20265608_020422_iter386.mat` |
+
+The rebased 399/100 Tx1 train/test split remains preserved for comparability. The newly added `iter386` file is not inserted into the existing split unless a fresh 400/100 split is explicitly created later.
+
 ## Existing Baselines
 
 The current reproducible baseline bundle is:
@@ -202,7 +212,7 @@ Planned scripts:
 | CVR-00 | Done | Manifest rebase for uploaded folder layout | `code\2nd\cross_view_relation\manifests` |
 | CVR-01 | Done | Exploratory representation screening | README summary and compact metric CSV |
 | CVR-02 | Planned | IQ/AP/FFT latent export from existing checkpoint | summary only, no latent arrays |
-| CVR-03 | Planned | Cross-view relation one-class scoring | file-level metric `.csv` |
+| CVR-03 | Done | Cross-view relation one-class scoring | file-level metric `.csv` |
 | CVR-04 | In CVR-01 | STFT representation screening | compact metric `.csv` |
 | CVR-05 | In CVR-01 | CCA/CKA relation diagnostics | compact table or README update |
 
@@ -325,3 +335,64 @@ The next experiment should move from single-representation screening to explicit
 - FFT/STFT/cepstral as a controlled redundant frequency group
 
 The next scoring features should include cosine distance, absolute difference, elementwise product, PCA residual, and train-normal Mahalanobis-style distance fitted only on Tx1 train-normal.
+
+## CVR-03 Relation Scoring Setup
+
+This experiment tests whether explicit cross-view relation features improve over the single-representation screen.
+
+Fitting again used Tx1 train-normal only. Evaluation used Tx1 holdout and Tx2-Tx8 only after fitting.
+
+Run profile:
+
+| Item | Value |
+| --- | --- |
+| Tx1 train files | 128 sampled from rebased train manifest |
+| Tx1 holdout files | 80 sampled from rebased test manifest |
+| Tx2-Tx8 anomaly files | 80 per device |
+| windows per file | 16 |
+| per-view projection | train-fitted PCA, 16 components |
+| relation features | absolute difference, elementwise product, cosine distance |
+| relation scoring | z-distance, PCA residual |
+| score threshold | train-normal p95 |
+
+Pairs tested:
+
+- AP / Cyclostationary proxy
+- IQ / Bispectrum proxy
+- IQ / Cyclostationary proxy
+- FFT / STFT
+- FFT / Cepstral
+- STFT / Cepstral
+
+## CVR-03 Relation Scoring Result
+
+Ranking by file-level AUC:
+
+| Rank | Pair | Method | AUC | Min Tx AUC | F1 | FP / 80 normal | FN / 560 anomaly |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | AP / Cyclostationary proxy | relation PCA residual | 0.610402 | 0.478906 | 0.479791 | 23 | 376 |
+| 2 | IQ / Cyclostationary proxy | relation PCA residual | 0.605446 | 0.484844 | 0.403315 | 18 | 414 |
+| 3 | IQ / Bispectrum proxy | relation PCA residual | 0.570379 | 0.465313 | 0.409904 | 18 | 411 |
+| 4 | IQ / Bispectrum proxy | relation z-distance | 0.569129 | 0.480156 | 0.195827 | 2 | 499 |
+| 5 | STFT / Cepstral | relation PCA residual | 0.548795 | 0.477344 | 0.509603 | 22 | 361 |
+
+Interpretation:
+
+- Cross-view relation scoring did not beat the best single-representation screening result, which was Cyclostationary proxy PCA residual at AUC 0.614241.
+- AP / Cyclostationary and IQ / Cyclostationary were the strongest relation pairs, which is consistent with the CKA/CCA diagnostic.
+- Frequency-only relation pairs such as FFT / STFT and FFT / Cepstral were weak, likely because those views are highly redundant.
+- The current relation formulation is not yet strong enough as a final detector. It is still useful as a research direction because pair ranking is coherent with the CKA/CCA structure.
+
+## CVR-03 Decision
+
+Continue the follow-up, but change the next experiment from raw relation PCA residuals to a better-calibrated relation model.
+
+The next candidate should combine:
+
+- the single Cyclostationary proxy score,
+- AP / Cyclostationary relation PCA residual,
+- IQ / Cyclostationary relation PCA residual,
+- IQ / Bispectrum relation with a low-false-positive threshold,
+- a redundancy-controlled frequency group rather than separate FFT/STFT/Cepstral relation scores.
+
+The next fitting method should add shrinkage covariance or robust rank calibration using Tx1 train-normal only.
