@@ -61,3 +61,5 @@ analysis_output/
 code/2nd/results/cross_view_relation/**/sampled_files.csv
 code/2nd/results/cross_view_relation/**/run_config.json
 code/2nd/cross_view_relation/manifests/manifest_summary.json
+code/2nd/results/cross_view_relation/*smoke*/
+code/2nd/results/cross_view_relation/representation_screening_seed42_w16_f64/

@@ -65,6 +65,7 @@ def parse_args():
     parser.add_argument("--pca-components", type=int, default=16)
     parser.add_argument("--relation-pca-components", type=int, default=16)
     parser.add_argument("--threshold-quantile", type=float, default=0.95)
+    parser.add_argument("--threshold-quantiles", type=float, nargs="+", default=None)
     return parser.parse_args()
 
 
@@ -190,6 +191,7 @@ def fusion_methods(train_rank, normal_rank, anomaly_rank):
 def main():
     args = parse_args()
     start = time.time()
+    threshold_quantiles = args.threshold_quantiles or [args.threshold_quantile]
     components, reps = parse_components(args.components)
     args.pairs = [
         f"{component['pair'][0]}:{component['pair'][1]}"
@@ -222,20 +224,22 @@ def main():
                 args,
             )
         train_scores, normal_scores, anomaly_scores = scores
-        threshold, metrics, _ = evaluate_scores(
-            train_scores,
-            normal_scores,
-            anomaly_scores,
-            args.threshold_quantile,
-        )
+        for threshold_quantile in threshold_quantiles:
+            threshold, metrics, _ = evaluate_scores(
+                train_scores,
+                normal_scores,
+                anomaly_scores,
+                threshold_quantile,
+            )
+            component_rows.append(
+                {
+                    "component": component["label"],
+                    "threshold_quantile": threshold_quantile,
+                    "threshold": threshold,
+                    **metrics,
+                }
+            )
         component_outputs.append((component["label"], train_scores, normal_scores, anomaly_scores))
-        component_rows.append(
-            {
-                "component": component["label"],
-                "threshold": threshold,
-                **metrics,
-            }
-        )
 
     train_rank, normal_rank, anomaly_rank = stack_component_ranks(component_outputs)
     metric_rows = []
@@ -245,29 +249,32 @@ def main():
         normal_rank,
         anomaly_rank,
     ).items():
-        threshold, metrics, tx_metrics = evaluate_scores(
-            train_scores,
-            normal_scores,
-            anomaly_scores,
-            args.threshold_quantile,
-        )
-        metric_rows.append(
-            {
-                "fusion": method,
-                "components": "|".join(label for label, *_ in component_outputs),
-                "threshold": threshold,
-                **metrics,
-            }
-        )
-        for tx, row in tx_metrics.items():
-            per_tx_rows.append(
+        for threshold_quantile in threshold_quantiles:
+            threshold, metrics, tx_metrics = evaluate_scores(
+                train_scores,
+                normal_scores,
+                anomaly_scores,
+                threshold_quantile,
+            )
+            metric_rows.append(
                 {
                     "fusion": method,
-                    "tx": tx,
+                    "components": "|".join(label for label, *_ in component_outputs),
+                    "threshold_quantile": threshold_quantile,
                     "threshold": threshold,
-                    **row,
+                    **metrics,
                 }
             )
+            for tx, row in tx_metrics.items():
+                per_tx_rows.append(
+                    {
+                        "fusion": method,
+                        "tx": tx,
+                        "threshold_quantile": threshold_quantile,
+                        "threshold": threshold,
+                        **row,
+                    }
+                )
 
     output_dir = Path(args.output_dir).resolve()
     write_csv(output_dir / "fusion_metrics.csv", metric_rows)
@@ -276,6 +283,7 @@ def main():
     run_config = vars(args).copy()
     run_config.update(config)
     run_config["representations_used"] = reps
+    run_config["threshold_quantiles_effective"] = threshold_quantiles
     run_config["elapsed_seconds"] = time.time() - start
     output_dir.mkdir(parents=True, exist_ok=True)
     with (output_dir / "run_config.json").open("w", encoding="utf-8") as f:
@@ -284,13 +292,13 @@ def main():
     print("[fusion] component metrics")
     for row in sorted(component_rows, key=lambda r: (r["auc"], r["f1"]), reverse=True):
         print(
-            f"  {row['component']:42s} auc={row['auc']:.6f} "
+            f"  q={row['threshold_quantile']:.2f} {row['component']:42s} auc={row['auc']:.6f} "
             f"f1={row['f1']:.6f} fp={row['fp']} fn={row['fn']}"
         )
     print("[fusion] fusion metrics")
     for row in sorted(metric_rows, key=lambda r: (r["auc"], r["f1"]), reverse=True):
         print(
-            f"  {row['fusion']:20s} auc={row['auc']:.6f} "
+            f"  q={row['threshold_quantile']:.2f} {row['fusion']:20s} auc={row['auc']:.6f} "
             f"f1={row['f1']:.6f} fp={row['fp']} fn={row['fn']}"
         )
     print(f"[fusion] wrote: {output_dir}")

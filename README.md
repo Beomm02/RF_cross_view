@@ -216,6 +216,7 @@ Planned scripts:
 | CVR-04 | In CVR-01 | STFT representation screening | compact metric `.csv` |
 | CVR-05 | In CVR-01 | CCA/CKA relation diagnostics | compact table or README update |
 | CVR-06 | Done | Train-normal rank-calibrated relation fusion | file-level metric `.csv` |
+| CVR-07 | Done | Full preserved split relation-fusion threshold sweep | file-level metric `.csv` |
 
 ## First Command
 
@@ -478,3 +479,66 @@ Recommended next steps:
 - compare p90, p95, and p97 train-normal thresholds,
 - add shrinkage covariance scoring for the relation feature space,
 - keep Tx4 and Tx8 as explicit failure-analysis targets.
+
+## CVR-07 Full Split Threshold Sweep Setup
+
+This experiment scales CVR-06 to the preserved full split before adding a more complex relation model.
+
+Fitting and calibration used Tx1 train-normal only. Tx1 holdout and Tx2-Tx8 were used only for evaluation.
+
+Run profile:
+
+| Item | Value |
+| --- | --- |
+| Tx1 train files | 399 |
+| Tx1 holdout files | 100 |
+| Tx2-Tx8 anomaly files | 500 per device, 3500 total |
+| windows per file | 16 |
+| components | same as CVR-06 |
+| thresholds | train-normal p90, p95, p97 |
+
+## CVR-07 Full Split Threshold Sweep Result
+
+Fusion ranking by AUC:
+
+| Rank | Fusion | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 | p95 F1 | p97 F1 |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | rank top-2 mean | 0.601646 | 0.346271 | 15 | 2764 | 0.278351 | 0.229914 |
+| 2 | rank max | 0.596049 | 0.329608 | 12 | 2807 | 0.264356 | 0.247000 |
+| 3 | cyclostationary-weighted rank | 0.593829 | 0.324427 | 12 | 2820 | 0.262766 | 0.240522 |
+| 4 | rank mean | 0.591980 | 0.317605 | 12 | 2837 | 0.258016 | 0.233871 |
+
+Best component comparison on the full split:
+
+| Score | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| --- | ---: | ---: | ---: | ---: |
+| AP / Cyclostationary relation PCA residual | 0.595189 | 0.386327 | 17 | 2658 |
+| Cyclostationary proxy PCA residual | 0.594117 | 0.351947 | 12 | 2750 |
+| IQ / Bispectrum relation z-distance | 0.568200 | 0.267095 | 10 | 2959 |
+| IQ / Cyclostationary relation PCA residual | 0.550620 | 0.324105 | 11 | 2821 |
+
+Per-device AUC for the best full-split fusion, rank top-2 mean:
+
+| Device | AUC | p90 F1 | p90 FN / 500 |
+| --- | ---: | ---: | ---: |
+| Tx2 | 0.574000 | 0.330632 | 398 |
+| Tx3 | 0.620220 | 0.359873 | 387 |
+| Tx4 | 0.585340 | 0.308703 | 406 |
+| Tx5 | 0.616910 | 0.338710 | 395 |
+| Tx6 | 0.600930 | 0.362480 | 386 |
+| Tx7 | 0.630140 | 0.380503 | 379 |
+| Tx8 | 0.583980 | 0.289037 | 413 |
+
+Interpretation:
+
+- The full-split result is weaker than the sampled CVR-06 result.
+- Rank fusion still slightly improves AUC over the best full-split single component, but only from 0.595189 to 0.601646.
+- p90 is the best operating threshold among p90, p95, and p97 for F1, but recall remains low.
+- The signal is broad but shallow: all anomaly devices are above chance AUC, yet none are cleanly separated.
+- Tx8 is still the weakest practical operating case by p90 F1 and false negatives.
+
+## CVR-07 Decision
+
+The current handcrafted relation-fusion path is not strong enough as a standalone detector.
+
+The research should continue only if the next step improves the scoring model itself. The next useful experiment is shrinkage covariance or robust Mahalanobis scoring in the relation feature space, fitted only on Tx1 train-normal, followed by the same full-split p90/p95/p97 evaluation.
