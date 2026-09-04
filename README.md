@@ -2,16 +2,18 @@
 
 ## 연구 목적
 
-이 저장소는 RF IQ 원본 신호에서 여러 표현(feature representation)을 만들고, 그 표현들 사이의 관계성이 Tx1 정상 송신기와 Tx2-Tx8 타 송신기 사이에서 달라지는지 확인하기 위한 실험 기록이다.
+이 저장소는 RF IQ 원본 신호에서 여러 representation을 만들고, 정상 RF와 unseen/anomaly RF 사이에서 representation 간 관계성이 달라지는지 확인하기 위한 실험 기록이다.
 
-핵심 질문은 다음과 같다.
+현재 핵심 질문은 다음 두 가지다.
 
-Tx1 정상 데이터에서 안정적인 feature 간 관계가 존재하고, Tx2-Tx8에서는 그 관계가 깨지는가?
+1. 정상 RF, 즉 Tx1-Tx4에서 서로 다른 representation 사이에 일정한 관계가 존재하는가?
+2. Anomaly RF, 즉 학습에 쓰지 않은 Tx5-Tx8이 들어오면 그 관계의 차이로 구분할 수 있는가?
 
 ## 평가 원칙
 
-- Train/calibration에는 Tx1 train-normal만 사용한다.
-- Tx1 holdout과 Tx2-Tx8은 fitting, feature 선택, threshold 결정, score normalization에 사용하지 않는다.
+- Train/calibration에는 Tx1-Tx4 known-normal train만 사용한다.
+- Tx5-Tx8은 fitting, feature 선택, threshold 결정, score normalization에 사용하지 않는다.
+- Tx1-Tx4 holdout은 known-normal test로만 사용한다.
 - 최종 평가는 file-level로만 본다.
 - 이 결과는 unseen-transmitter detection 실험이며, receiver/channel/distance robustness로 해석하지 않는다.
 - 실험 로그, raw data, checkpoint, feature cache, `.npy`, `.npz`는 GitHub에 올리지 않는다.
@@ -43,6 +45,24 @@ Tx1에서 누락되었던 파일은 추가되었다.
 RFF_Tx_ANTSDR_1_Boot_01_20265608_020422_iter386.mat
 ```
 
+## GitHub 관리 정책
+
+GitHub에는 다음만 올린다.
+
+- README
+- 실험 스크립트
+- split manifest
+- 작은 CSV 결과표
+
+GitHub에는 다음을 올리지 않는다.
+
+- raw RF data
+- feature cache
+- runtime log
+- checkpoint
+- local path가 들어간 run config
+- `.npy`, `.npz`, `.pt`, `.pth`
+
 ## 실험 루트
 
 작업 루트:
@@ -63,60 +83,44 @@ code\2nd\cross_view_relation
 code\2nd\.venv\Scripts\python.exe
 ```
 
-## GitHub 관리 정책
+## 현재 실험
 
-GitHub에는 다음만 올린다.
-
-- README
-- 실험 스크립트
-- split manifest
-- 작은 CSV 결과표
-
-GitHub에는 다음을 올리지 않는다.
-
-- raw RF data
-- feature cache
-- runtime log
-- checkpoint
-- local path가 들어간 run config
-- `.npy`, `.npz`, `.pt`, `.pth`
-
-## 단일 파이프라인 실험
-
-이번 정리에서는 이전 개별 실험 결과를 제거하고, 하나의 파이프라인으로 다시 수행했다.
+이번 실험은 Tx1-Tx4를 known-normal로 두고, Tx5-Tx8을 학습에서 보지 않은 unseen/anomaly 송신기로 두는 open-set relation 실험이다.
 
 스크립트:
 
 ```text
-code\2nd\cross_view_relation\run_iq_feature_relation_experiment.py
+code\2nd\cross_view_relation\run_known4_relation_generalization_experiment.py
 ```
 
-이 스크립트는 다음을 한 번에 수행한다.
+결과 위치:
 
-1. Tx1 500개에서 seed 42 기준 fresh 400/100 split 생성
-2. Tx2-Tx8 전체 anomaly manifest 생성
-3. IQ 원본에서 여러 representation feature 추출
-4. Tx1 train-normal 기준 CKA/CCA relation 진단
-5. single representation one-class scoring
-6. 모든 representation pair에 대한 relation scoring
-7. train-normal empirical rank fusion
+```text
+code\2nd\results\cross_view_relation\known4_relation_generalization_seed42_w16
+```
+
+Feature cache는 이전 IQ feature 추출 cache를 재사용했지만, cache 파일 자체는 GitHub에 올리지 않는다.
+
+```text
+code\2nd\artifacts\cross_view_relation\iq_feature_relation_full_seed42_w16.npz
+```
 
 ## 실험 설정
 
 | Item | Value |
 | --- | --- |
-| Tx1 train | 400 files |
-| Tx1 holdout | 100 files |
-| Tx2-Tx8 anomaly | 500 files per Tx, 3500 total |
-| windows per file | 16 |
-| window size / stride | 2048 / 1024 |
-| normalization | power |
-| fitting data | Tx1 train only |
-| thresholds | Tx1 train p90, p95, p97 |
+| Known train | Tx1-Tx4, 400 files per Tx, 1600 total |
+| Known test | Tx1-Tx4, 100 files per Tx, 400 total |
+| Unknown/anomaly test | Tx5-Tx8, 500 files per Tx, 2000 total |
+| Split seed | 42 |
+| Windows per file | 16 |
+| Window size / stride | 2048 / 1024 |
+| Normalization | power |
+| Thresholds | known train p90, p95, p97 |
 
-## 사용한 Feature Representation
+## 사용한 Representation
 
-모든 feature는 IQ 원본 신호에서 파생했다.
+모든 representation은 IQ 원본 신호에서 파생했다.
 
 | Representation | 설명 |
 | --- | --- |
@@ -133,111 +137,127 @@ Cyclostationary와 Bispectrum은 첫 연구 가능성 확인을 위한 경량 pr
 
 ## 관계성 진단 방법
 
-Tx1 train-normal feature만 사용해서 representation 간 관계를 진단했다.
+Tx1-Tx4 known train feature만 사용해서 representation 간 관계를 진단했다.
 
 - Linear CKA
 - split-half CCA
+- known Tx별 CKA/CCA 안정성
+- representation pair relation feature의 one-class residual score
 
-이 값들은 anomaly detection 성능 그 자체가 아니라, representation들이 얼마나 중복되거나 상보적인지 보는 진단값이다.
+Relation score는 각 representation을 known train 기준으로 standardize/PCA projection한 뒤, 두 representation 사이의 `abs diff`, `product`, `1 - cosine` 관계 feature를 만들고, 그 relation feature가 known train 관계 분포에서 얼마나 벗어나는지 측정한다. PCA residual score는 test batch 평균이 아니라 known train center를 고정해서 계산한다.
 
-## CKA / CCA 결과
+## 정상 관계성 진단 결과
 
-낮은 CKA pair:
-
-| Pair | Linear CKA | Split CCA mean5 |
-| --- | ---: | ---: |
-| IQ / Bispectrum | 0.251270 | 0.417163 |
-| IQ / HOS | 0.272731 | 0.792399 |
-| IQ / STFT | 0.283481 | 0.454875 |
-| IQ / Cyclostationary | 0.286236 | 0.450929 |
-| HOS / Bispectrum | 0.294336 | 0.449063 |
-
-높은 CKA pair:
+Pooled Tx1-Tx4 known train에서 CKA가 낮은 pair:
 
 | Pair | Linear CKA | Split CCA mean5 |
 | --- | ---: | ---: |
-| STFT / Cepstral | 0.863303 | 0.885524 |
-| FFT / STFT | 0.803549 | 0.935830 |
-| AP / Cyclostationary | 0.782317 | 0.834140 |
-| FFT / Cepstral | 0.765221 | 0.946848 |
-| AP / Cepstral | 0.736148 | 0.856276 |
+| IQ / Bispectrum | 0.254903 | 0.440773 |
+| IQ / Cyclostationary | 0.281706 | 0.735932 |
+| IQ / HOS | 0.286684 | 0.925653 |
+| IQ / STFT | 0.300900 | 0.622141 |
+| HOS / Bispectrum | 0.315463 | 0.433688 |
+
+Pooled Tx1-Tx4 known train에서 CKA가 높은 pair:
+
+| Pair | Linear CKA | Split CCA mean5 |
+| --- | ---: | ---: |
+| STFT / Cepstral | 0.850683 | 0.884585 |
+| FFT / STFT | 0.821949 | 0.927842 |
+| AP / Cyclostationary | 0.797802 | 0.905448 |
+| FFT / Cepstral | 0.775935 | 0.953439 |
+| AP / Cepstral | 0.763458 | 0.868737 |
+
+Known Tx별 CKA가 안정적인 pair:
+
+| Pair | Pooled CKA | Known Tx CKA mean | Known Tx CKA std |
+| --- | ---: | ---: | ---: |
+| STFT / Cepstral | 0.850683 | 0.855232 | 0.008113 |
+| FFT / Cyclostationary | 0.530808 | 0.536714 | 0.011484 |
+| FFT / Bispectrum | 0.550255 | 0.556473 | 0.012647 |
+| AP / FFT | 0.640975 | 0.645511 | 0.012778 |
+| IQ / Cyclostationary | 0.281706 | 0.290162 | 0.013366 |
+
+이 결과만 보면 정상 Tx1-Tx4 안에서 representation 간 관계는 존재한다. 특히 STFT/Cepstral, FFT/STFT, AP/Cyclostationary처럼 높은 CKA pair는 여러 known Tx에서 비교적 안정적으로 반복된다.
 
 ## Single Representation 결과
 
 상위 single representation score:
 
-| Rank | Representation | Method | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| Rank | Representation | Method | AUC | p90 F1 | p90 FP / 400 | p90 FN / 2000 |
 | ---: | --- | --- | ---: | ---: | ---: | ---: |
-| 1 | Cyclostationary proxy | PCA residual | 0.580211 | 0.366426 | 13 | 2712 |
-| 2 | FFT | PCA residual | 0.579683 | 0.427518 | 20 | 2543 |
-| 3 | Cepstral | shrinkage Mahalanobis | 0.568717 | 0.379922 | 18 | 2675 |
-| 4 | FFT | shrinkage Mahalanobis | 0.566163 | 0.363721 | 18 | 2718 |
+| 1 | FFT | zdist | 0.574055 | 0.205353 | 45 | 1766 |
+| 2 | AP | PCA residual | 0.555504 | 0.271072 | 41 | 1680 |
+| 3 | AP | shrinkage Mahalanobis | 0.532104 | 0.214192 | 51 | 1754 |
+| 4 | FFT | PCA residual | 0.527154 | 0.223958 | 46 | 1742 |
+| 5 | Bispectrum proxy | zdist | 0.525696 | 0.209007 | 48 | 1761 |
 
 ## Relation Pair 결과
 
 상위 relation score:
 
-| Rank | Pair | Method | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| Rank | Pair | Method | AUC | p90 F1 | p90 FP / 400 | p90 FN / 2000 |
 | ---: | --- | --- | ---: | ---: | ---: | ---: |
-| 1 | AP / HOS | relation PCA residual | 0.651763 | 0.477302 | 22 | 2396 |
-| 2 | Cepstral / Bispectrum | relation PCA residual | 0.611949 | 0.375463 | 9 | 2689 |
-| 3 | FFT / Cyclostationary | relation PCA residual | 0.583309 | 0.394161 | 20 | 2636 |
-| 4 | Cepstral / Bispectrum | relation shrinkage Mahalanobis | 0.582231 | 0.388991 | 12 | 2652 |
-| 5 | IQ / HOS | relation PCA residual | 0.578534 | 0.338208 | 23 | 2783 |
+| 1 | FFT / Bispectrum | relation shrinkage Mahalanobis | 0.530048 | 0.234738 | 53 | 1727 |
+| 2 | Cepstral / Bispectrum | relation PCA residual | 0.528199 | 0.228002 | 44 | 1737 |
+| 3 | FFT / Bispectrum | relation zdist | 0.528170 | 0.205689 | 50 | 1765 |
+| 4 | FFT / Bispectrum | relation PCA residual | 0.522836 | 0.243278 | 58 | 1715 |
+| 5 | Cepstral / Bispectrum | relation shrinkage Mahalanobis | 0.522575 | 0.204655 | 44 | 1767 |
 
-## Best Relation Pair Per-Device
+## Best Relation Pair 세부 결과
 
-Best overall relation score: AP / HOS relation PCA residual.
+Best relation score는 FFT / Bispectrum relation shrinkage Mahalanobis이다.
 
-| Device | AUC | p90 F1 | p90 FN / 500 |
-| --- | ---: | ---: | ---: |
-| Tx2 | 0.663240 | 0.363636 | 384 |
-| Tx3 | 0.541640 | 0.307942 | 405 |
-| Tx4 | 0.658440 | 0.307942 | 405 |
-| Tx5 | 0.473360 | 0.268657 | 419 |
-| Tx6 | 0.802300 | 0.706320 | 215 |
-| Tx7 | 0.614420 | 0.342857 | 392 |
-| Tx8 | 0.808940 | 0.765957 | 176 |
+p90 threshold에서 known Tx별 false reject:
+
+| Known Tx | False reject / 100 |
+| --- | ---: |
+| Tx1 | 15 |
+| Tx2 | 7 |
+| Tx3 | 17 |
+| Tx4 | 14 |
+
+p90 threshold에서 unknown Tx별 탐지:
+
+| Unknown Tx | AUC | F1 | Recall | FN / 500 |
+| --- | ---: | ---: | ---: | ---: |
+| Tx5 | 0.493865 | 0.180921 | 0.110 | 445 |
+| Tx6 | 0.541470 | 0.227564 | 0.142 | 429 |
+| Tx7 | 0.564740 | 0.250000 | 0.158 | 421 |
+| Tx8 | 0.520115 | 0.219002 | 0.136 | 432 |
 
 ## Fusion 결과
 
 상위 fusion score:
 
-| Fusion | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| Fusion | AUC | p90 F1 | p90 FP / 400 | p90 FN / 2000 |
 | --- | ---: | ---: | ---: | ---: |
-| single PCA rank mean | 0.558096 | 0.417957 | 24 | 2569 |
-| high-CKA relation PCA rank mean | 0.542416 | 0.378229 | 16 | 2680 |
-| all relation PCA rank mean | 0.537249 | 0.386712 | 21 | 2656 |
-| low-CKA relation Mahalanobis rank mean | 0.499743 | 0.275270 | 15 | 2939 |
-| low-CKA relation PCA rank mean | 0.485277 | 0.328188 | 20 | 2809 |
+| single PCA rank mean | 0.522226 | 0.226350 | 53 | 1738 |
+| low-CKA relation PCA rank mean | 0.497518 | 0.214099 | 52 | 1754 |
+| all relation PCA rank mean | 0.496154 | 0.211806 | 60 | 1756 |
+| low-CKA relation Mahalanobis rank mean | 0.490196 | 0.195423 | 50 | 1778 |
+| high-CKA relation PCA rank mean | 0.483333 | 0.203493 | 57 | 1767 |
 
 ## 해석
 
-이번 실험은 "feature 간 관계성"이 실제로 의미가 있는지 확인하는 데 초점을 둔다.
+핵심 질문 1에 대한 답:
 
-핵심 관찰:
+정상 RF Tx1-Tx4에서 representation 간 관계는 관찰된다. 높은 CKA pair와 낮은 Tx별 CKA 표준편차를 보면, 일부 관계는 특정 Tx 하나에만 생기는 우연이라기보다 known-normal 그룹 안에서 반복되는 구조로 볼 수 있다.
 
-- Single representation 최고 AUC는 Cyclostationary proxy의 0.580211이다.
-- Relation pair 최고 AUC는 AP / HOS의 0.651763이다.
-- 따라서 단일 feature보다 feature 간 관계를 보는 쪽에서 더 강한 신호가 관찰됐다.
-- 다만 AP / HOS는 Tx6, Tx8에서는 강하지만 Tx5에서는 AUC 0.473360으로 실패한다.
-- 전체 fusion은 relation pair 최고값보다 낮았다.
-- FFT, STFT, Cepstral은 CKA가 높아 서로 중복성이 강하다.
-- IQ와 Bispectrum, IQ와 Cyclostationary는 CKA가 낮아 상보성 후보이지만 현재 scoring에서는 강한 성능으로 이어지지 않았다.
+핵심 질문 2에 대한 답:
 
-## 현재 결론
+현재 feature와 residual scoring 방식만으로는 Tx5-Tx8 anomaly를 강하게 구분하지 못했다. Best relation AUC는 0.530048이고, best single representation인 FFT zdist AUC 0.574055보다 낮다. Fusion도 최고 AUC 0.522226 수준이라 relation score 조합이 성능을 끌어올리지 못했다.
 
-연구 가능성은 있다.
+현재 결론:
 
-가장 중요한 결과는 AP / HOS relation이 single representation보다 더 높은 AUC를 보였다는 점이다. 이는 Tx1 정상에서의 amplitude/phase 구조와 higher-order statistics 사이 관계가 일부 타 송신기에서 달라질 수 있음을 시사한다.
+정상 representation relation은 존재하지만, Tx1-Tx4를 모두 normal로 묶으면 그 관계가 Tx5-Tx8에서도 크게 깨지지 않는다. 즉 현재 relation feature는 anomaly-specific 차이보다 RF 신호의 공통 구조를 더 많이 잡고 있을 가능성이 크다.
 
-하지만 아직 standalone detector로 주장하기에는 부족하다. Tx5에서 실패하고, 전체 recall도 낮다. 다음 단계는 AP / HOS relation을 중심으로 안정성을 높이는 것이다.
+## 다음 방향
 
-## 다음 실험 후보
+이번 결과 기준으로는 다음 보강이 필요하다.
 
-- AP / HOS relation feature를 더 자세히 분해해서 어떤 항이 성능을 만드는지 확인
-- Tx5 failure analysis
-- full cyclostationary spectral correlation 구현
-- dense bispectrum 또는 bicoherence feature 구현
-- relation feature에 robust covariance / rank calibration / per-family normalization 적용
-- 기존 power-tail baseline과 score-level fusion 비교
+1. CFO representation을 명시적으로 추가한다.
+2. Tx1-Tx4를 하나의 pooled normal로만 보지 말고, Tx별 relation template 또는 mixture relation model을 둔다.
+3. Relation residual 대신 Tx identity를 쓰지 않는 self-supervised consistency loss를 검토한다.
+4. Cyclostationary proxy와 Bispectrum proxy를 full spectral correlation, bicoherence 계열로 확장한다.
+5. McAFF의 IQ/CFO/FFT/STFT multi-channel 아이디어는 가져오되, supervised classifier가 아니라 unseen rejection 목적의 relation/consistency score로 바꾼다.

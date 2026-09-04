@@ -1,0 +1,13 @@
+split,tx,count
+known_train,Tx1,400
+known_test,Tx1,100
+known_train,Tx2,400
+known_test,Tx2,100
+known_train,Tx3,400
+known_test,Tx3,100
+known_train,Tx4,400
+known_test,Tx4,100
+unknown_test,Tx5,500
+unknown_test,Tx6,500
+unknown_test,Tx7,500
+unknown_test,Tx8,500
