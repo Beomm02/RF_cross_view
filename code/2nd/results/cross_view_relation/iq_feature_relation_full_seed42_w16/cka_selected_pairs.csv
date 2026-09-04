@@ -1,0 +1,15 @@
+group,pair
+low_cka,fft:hos
+low_cka,hos:bispectrum
+low_cka,iq:bispectrum
+low_cka,iq:cepstral
+low_cka,iq:cyclo
+low_cka,iq:hos
+low_cka,iq:stft
+high_cka,ap:cepstral
+high_cka,ap:cyclo
+high_cka,cepstral:cyclo
+high_cka,cyclo:hos
+high_cka,fft:cepstral
+high_cka,fft:stft
+high_cka,stft:cepstral

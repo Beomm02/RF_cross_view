@@ -1,5 +1,0 @@
-fusion,components,threshold,auc,accuracy,precision,recall,f1,tp,tn,fp,fn
-rank_mean,single:cyclo:pca_residual|relation:ap:cyclo:pca_residual|relation:iq:cyclo:pca_residual|relation:iq:bispectrum:zdist,0.818359375,0.63546875,0.3265625,0.9006211180124224,0.25892857142857145,0.4022191400832178,145,64,16,415
-rank_max,single:cyclo:pca_residual|relation:ap:cyclo:pca_residual|relation:iq:cyclo:pca_residual|relation:iq:bispectrum:zdist,0.984375,0.6259040178571429,0.3484375,0.8994413407821229,0.2875,0.43572395128552094,161,62,18,399
-rank_top2_mean,single:cyclo:pca_residual|relation:ap:cyclo:pca_residual|relation:iq:cyclo:pca_residual|relation:iq:bispectrum:zdist,0.9556640624999999,0.6227678571428571,0.340625,0.8709677419354839,0.2892857142857143,0.4343163538873995,162,56,24,398
-rank_cyclo_weighted,single:cyclo:pca_residual|relation:ap:cyclo:pca_residual|relation:iq:cyclo:pca_residual|relation:iq:bispectrum:zdist,0.811953125,0.6333816964285715,0.34375,0.9022988505747126,0.28035714285714286,0.42779291553133514,157,63,17,403

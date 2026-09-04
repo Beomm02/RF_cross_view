@@ -1,79 +1,34 @@
-# RF Multi-View Follow-up Research
+# RF Cross-View Feature Relation Study
 
-## Research Topic
+## 연구 목적
 
-This repository tracks a follow-up study on one-class unseen-transmitter detection with multi-view RF representations.
+이 저장소는 RF IQ 원본 신호에서 여러 표현(feature representation)을 만들고, 그 표현들 사이의 관계성이 Tx1 정상 송신기와 Tx2-Tx8 타 송신기 사이에서 달라지는지 확인하기 위한 실험 기록이다.
 
-The core question is whether relationships between IQ, amplitude/phase, FFT, and STFT views can improve anomaly detection when only Tx1 normal data is available during training and calibration.
+핵심 질문은 다음과 같다.
 
-## Evaluation Boundary
+Tx1 정상 데이터에서 안정적인 feature 간 관계가 존재하고, Tx2-Tx8에서는 그 관계가 깨지는가?
 
-This study uses a strict one-class protocol.
+## 평가 원칙
 
-- Train and calibration data: Tx1 train-normal only.
-- Normal evaluation data: held-out Tx1 files only.
-- Anomaly evaluation data: Tx2 through Tx8 files only.
-- No Tx1 holdout, Tx2-Tx8, oracle, test, or anomaly files may be used for representation choice, threshold fitting, feature selection, density fitting, or score normalization.
-- Final metrics are reported at file level.
-- Results must not be described as receiver, channel, distance, or environment robustness unless a separate controlled dataset supports that claim.
+- Train/calibration에는 Tx1 train-normal만 사용한다.
+- Tx1 holdout과 Tx2-Tx8은 fitting, feature 선택, threshold 결정, score normalization에 사용하지 않는다.
+- 최종 평가는 file-level로만 본다.
+- 이 결과는 unseen-transmitter detection 실험이며, receiver/channel/distance robustness로 해석하지 않는다.
+- 실험 로그, raw data, checkpoint, feature cache, `.npy`, `.npz`는 GitHub에 올리지 않는다.
 
-## Current Project Root
+## 데이터 상태
 
-Use this folder as the working root:
-
-```text
-C:\Users\Beomm\Desktop\project\모델 관련 자료\project
-```
-
-The active experiment code is mainly under:
+데이터 위치:
 
 ```text
-code\2nd
+data/
 ```
 
-The usable Python environment is:
+현재 파일 수:
 
-```text
-code\2nd\.venv\Scripts\python.exe
-```
-
-## GitHub Tracking Policy
-
-GitHub is used for source code, experiment design, reproducible commands, compact result tables, and this README.
-
-Do not commit raw RF data, model checkpoints, virtual environments, feature caches, latent arrays, temporary scratch outputs, or runtime logs.
-
-New experiment logs are local-only. Result summaries may be committed when they are small and directly support the README experiment table.
-
-Allowed examples:
-
-- `README.md`
-- source scripts
-- manifest-generation scripts
-- small `.csv`, `.json`, or `.md` result summaries
-- baseline reference summaries
-
-Ignored examples:
-
-- `data/`
-- `.venv/`
-- `checkpoints/`
-- `artifacts/logs/`
-- `*.log`
-- `*.out`
-- `*.err`
-- `*.pth`
-- `*.pt`
-- `*.npy`
-- `*.npz`
-
-## Uploaded Data State
-
-The uploaded RF data is available under `data/`.
-
-| Device | File count |
+| Device | Count |
 | --- | ---: |
-| Tx1 | 499 |
+| Tx1 | 500 |
 | Tx2 | 500 |
 | Tx3 | 500 |
 | Tx4 | 500 |
@@ -82,463 +37,207 @@ The uploaded RF data is available under `data/`.
 | Tx7 | 500 |
 | Tx8 | 500 |
 
-The existing rigorous split manifests are under:
+Tx1에서 누락되었던 파일은 추가되었다.
 
 ```text
-code\2nd\exp_rigorous\manifests
+RFF_Tx_ANTSDR_1_Boot_01_20265608_020422_iter386.mat
 ```
 
-Current split files:
+## 실험 루트
 
-| Manifest | Count | Role |
-| --- | ---: | --- |
-| `tx1_train_80_seed42.txt` | 399 | Tx1 train-normal |
-| `tx1_test_20_seed42.txt` | 100 | Tx1 held-out normal |
-| `tx2_all.txt` | 500 | Prior anomaly manifest |
-
-The uploaded manifest paths currently point to an older absolute root, so the first housekeeping task is to rebuild or rebase manifests against the current `data/` folder while preserving the same Tx1 train/test basenames.
-
-Data check after adding the missing Tx1 file:
-
-| Item | Result |
-| --- | --- |
-| Tx1 file count | 500 |
-| Missing Tx1 iter numbers | none |
-| Added file | `RFF_Tx_ANTSDR_1_Boot_01_20265608_020422_iter386.mat` |
-
-The rebased 399/100 Tx1 train/test split remains preserved for comparability. The newly added `iter386` file is not inserted into the existing split unless a fresh 400/100 split is explicitly created later.
-
-## Existing Baselines
-
-The current reproducible baseline bundle is:
+작업 루트:
 
 ```text
-code\2nd\current_baseline_model
+C:\Users\Beomm\Desktop\project\모델 관련 자료\project
 ```
 
-Reference baseline:
-
-| Item | Value |
-| --- | ---: |
-| Score | `fusion_midrank_midlogw2_rank_max` |
-| AUC mean | 0.829089 |
-| AUC min | 0.796060 |
-| p60 F1 mean | 0.942966 |
-| p60 F1 min | 0.926441 |
-
-The final hybrid reference code is:
-
-```text
-code\2nd\final_model_code_20260621
-```
-
-Final hybrid reference:
-
-| Item | Value |
-| --- | ---: |
-| Score | `feature_tail_score + 0.25 * dagmm_energy_p95_tail` |
-| AUC mean | 0.912354 |
-| AUC min | 0.827540 |
-| operational F1 mean | 0.861915 |
-| operational F1 min | 0.616011 |
-
-These baselines are comparison anchors. They are not yet evidence that the new cross-view relation idea works.
-
-## Representation Shapes
-
-Default windowing uses `window_size=2048` and `stride=1024`.
-
-| Representation | Shape |
-| --- | --- |
-| raw IQ file | `(2000000, 2)` |
-| full file windows | `(1952, 2048, 2)` |
-| IQ view | `(2, 2048)` |
-| AP view, preprocessing helper | `(3, 2048)` |
-| AP view, dataset default | `(4, 2048)` |
-| FFT view, preprocessing helper | `(1, 2048)` |
-| FFT view, dataset default | `(2, 2048)` |
-| STFT view, `nperseg=128`, `noverlap=96` | `(128, 61)` |
-
-## Latent Extraction Point
-
-The main latent extraction point is `MultiViewModel.forward(iq, ap, freq)` in:
-
-```text
-code\2nd\model.py
-```
-
-It returns:
-
-- `z_iq`
-- `z_ap`
-- `z_f`
-
-The dataset already preserves aligned file paths and window indices, so cross-view relation features can be computed without changing the existing baseline implementation.
-
-## New Experiment Area
-
-Use a dedicated folder for follow-up scripts:
+실험 코드:
 
 ```text
 code\2nd\cross_view_relation
 ```
 
-Planned scripts:
+사용 Python:
 
-| Script | Purpose |
-| --- | --- |
-| `build_rf_manifest.py` | Rebase or rebuild manifests for the uploaded folder layout |
-| `extract_multiview_latents.py` | Save aligned IQ/AP/FFT latents from an existing checkpoint |
-| `representation_screening.py` | Compare IQ, AP, FFT, and STFT one-class separability |
-| `analyze_cca_cka.py` | Measure cross-view relation using CCA/CKA-style diagnostics |
-| `analyze_relation_distributions.py` | Inspect `abs-diff`, product, and cosine relation distributions |
-| `evaluate_relational_oneclass.py` | Evaluate train-normal-fitted relation scores at file level |
-
-## Experiment Order
-
-1. Rebase manifests to the current uploaded `data/` root.
-2. Run a baseline smoke check using train-normal calibration only.
-3. Export IQ/AP/FFT latents from the existing DAGMM-compatible checkpoint.
-4. Build cross-view relation features from aligned latents.
-5. Fit one-class scoring statistics using Tx1 train-normal only.
-6. Evaluate Tx1 holdout versus Tx2-Tx8 at file level.
-7. Add STFT screening after the FFT-based path is stable.
-8. Compare against the current power-tail baseline and final hybrid reference.
-
-## Experiment Registry
-
-| ID | Status | Purpose | Output to Track |
-| --- | --- | --- | --- |
-| CVR-00 | Done | Manifest rebase for uploaded folder layout | `code\2nd\cross_view_relation\manifests` |
-| CVR-01 | Done | Exploratory representation screening | README summary and compact metric CSV |
-| CVR-02 | Planned | IQ/AP/FFT latent export from existing checkpoint | summary only, no latent arrays |
-| CVR-03 | Done | Cross-view relation one-class scoring | file-level metric `.csv` |
-| CVR-04 | In CVR-01 | STFT representation screening | compact metric `.csv` |
-| CVR-05 | In CVR-01 | CCA/CKA relation diagnostics | compact table or README update |
-| CVR-06 | Done | Train-normal rank-calibrated relation fusion | file-level metric `.csv` |
-| CVR-07 | Done | Full preserved split relation-fusion threshold sweep | file-level metric `.csv` |
-
-## First Command
-
-Before running experiments, verify the uploaded data root:
-
-```powershell
-cd "C:\Users\Beomm\Desktop\project\모델 관련 자료\project\code\2nd"
-.\.venv\Scripts\python.exe -c "from pathlib import Path; root=Path('../../data').resolve(); print(root); print({p.name: len(list(p.glob('*.mat'))) for p in sorted(root.glob('Tx*'))})"
+```text
+code\2nd\.venv\Scripts\python.exe
 ```
 
-The first implementation task is `CVR-00`: create a manifest rebase script that preserves the existing Tx1 split by basename and writes new manifests under the cross-view experiment area.
+## GitHub 관리 정책
 
-## CVR-00 Manifest Rebase Result
+GitHub에는 다음만 올린다.
 
-Manifest rebase completed with zero missing Tx1 basenames.
+- README
+- 실험 스크립트
+- split manifest
+- 작은 CSV 결과표
 
-| Manifest | Count |
-| --- | ---: |
-| `tx1_train_80_seed42_rebased.txt` | 399 |
-| `tx1_test_20_seed42_rebased.txt` | 100 |
-| `tx2_all_rebased.txt` | 500 |
-| `tx3_all_rebased.txt` | 500 |
-| `tx4_all_rebased.txt` | 500 |
-| `tx5_all_rebased.txt` | 500 |
-| `tx6_all_rebased.txt` | 500 |
-| `tx7_all_rebased.txt` | 500 |
-| `tx8_all_rebased.txt` | 500 |
+GitHub에는 다음을 올리지 않는다.
 
-## CVR-01 Exploratory Screening Setup
+- raw RF data
+- feature cache
+- runtime log
+- checkpoint
+- local path가 들어간 run config
+- `.npy`, `.npz`, `.pt`, `.pth`
 
-This first screen is not a final model-selection result. It is a feasibility diagnostic for the follow-up idea.
+## 단일 파이프라인 실험
 
-Fitting used Tx1 train-normal only. Tx1 holdout and Tx2-Tx8 were used only after fitting for exploratory evaluation.
+이번 정리에서는 이전 개별 실험 결과를 제거하고, 하나의 파이프라인으로 다시 수행했다.
 
-Run profile:
+스크립트:
+
+```text
+code\2nd\cross_view_relation\run_iq_feature_relation_experiment.py
+```
+
+이 스크립트는 다음을 한 번에 수행한다.
+
+1. Tx1 500개에서 seed 42 기준 fresh 400/100 split 생성
+2. Tx2-Tx8 전체 anomaly manifest 생성
+3. IQ 원본에서 여러 representation feature 추출
+4. Tx1 train-normal 기준 CKA/CCA relation 진단
+5. single representation one-class scoring
+6. 모든 representation pair에 대한 relation scoring
+7. train-normal empirical rank fusion
+
+## 실험 설정
 
 | Item | Value |
 | --- | --- |
-| Tx1 train files | 128 sampled from rebased train manifest |
-| Tx1 holdout files | 80 sampled from rebased test manifest |
-| Tx2-Tx8 anomaly files | 80 per device |
+| Tx1 train | 400 files |
+| Tx1 holdout | 100 files |
+| Tx2-Tx8 anomaly | 500 files per Tx, 3500 total |
 | windows per file | 16 |
 | window size / stride | 2048 / 1024 |
-| score threshold | train-normal p95 |
-| scoring methods | diagonal z-distance, PCA residual |
-| CCA/CKA input | Tx1 train-normal only |
+| normalization | power |
+| fitting data | Tx1 train only |
+| thresholds | Tx1 train p90, p95, p97 |
 
-Representations screened:
+## 사용한 Feature Representation
 
-- IQ summary statistics
-- amplitude/phase statistics
-- FFT log-magnitude summary
-- STFT log-magnitude summary
-- cepstral coefficients from FFT log magnitude followed by DCT
-- cyclostationary spectral-correlation proxy
-- higher-order statistics and cumulants
-- reduced-grid bispectrum proxy
+모든 feature는 IQ 원본 신호에서 파생했다.
 
-The cyclostationary and bispectrum implementations are intentionally lightweight proxies for the first screen. They are meant to test whether signal exists before adding a heavier full spectral-correlation or dense bispectrum estimator.
+| Representation | 설명 |
+| --- | --- |
+| IQ | I/Q 통계와 power 통계 |
+| AP | amplitude, phase-diff, circular phase 통계 |
+| FFT | FFT log magnitude와 spectral shape |
+| STFT | STFT log magnitude의 time-frequency 요약 |
+| Cepstral | FFT log magnitude에 DCT 적용 |
+| Cyclostationary proxy | shifted spectrum correlation 기반 경량 spectral-correlation proxy |
+| HOS / cumulants | higher-order statistics와 cumulant 요약 |
+| Bispectrum proxy | reduced-grid bispectrum magnitude proxy |
 
-## CVR-01 Representation Screening Result
+Cyclostationary와 Bispectrum은 첫 연구 가능성 확인을 위한 경량 proxy이다. full spectral correlation 또는 dense bispectrum estimator는 아직 사용하지 않았다.
 
-Ranking by file-level AUC:
+## 관계성 진단 방법
 
-| Rank | Representation | Method | AUC | Min Tx AUC | F1 | FP / 80 normal | FN / 560 anomaly |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | Cyclostationary proxy | PCA residual | 0.614241 | 0.531563 | 0.440217 | 14 | 398 |
-| 2 | FFT | z-distance | 0.566540 | 0.533594 | 0.178914 | 10 | 504 |
-| 3 | Bispectrum proxy | z-distance | 0.550982 | 0.498281 | 0.220126 | 6 | 490 |
-| 4 | AP | PCA residual | 0.544464 | 0.512656 | 0.340058 | 16 | 442 |
-| 5 | Bispectrum proxy | PCA residual | 0.536629 | 0.465625 | 0.696872 | 44 | 237 |
+Tx1 train-normal feature만 사용해서 representation 간 관계를 진단했다.
 
-Interpretation:
+- Linear CKA
+- split-half CCA
 
-- The strongest single representation in the more stable run was the cyclostationary spectral-correlation proxy, but the AUC is still modest.
-- AP looked much stronger in the smaller 64-train-file screen, reaching AUC 0.763707, but that signal weakened when the Tx1 train sample was increased to 128 files. This means the AP result should be treated as unstable for now.
-- F1 is not the primary criterion here because the exploratory evaluation has many more anomaly files than normal files. AUC and Tx1 holdout false positives are more informative.
-- No single handcrafted representation is strong enough yet to claim a new method. The useful signal is more likely in cross-view relation or fusion.
+이 값들은 anomaly detection 성능 그 자체가 아니라, representation들이 얼마나 중복되거나 상보적인지 보는 진단값이다.
 
-## CVR-01 CKA / CCA Result
+## CKA / CCA 결과
 
-Highest linear CKA pairs on Tx1 train-normal:
+낮은 CKA pair:
 
-| Pair | Linear CKA | Split-half CCA mean5 |
+| Pair | Linear CKA | Split CCA mean5 |
 | --- | ---: | ---: |
-| STFT / Cepstral | 0.867930 | 0.840709 |
-| FFT / STFT | 0.805816 | 0.851743 |
-| FFT / Cepstral | 0.783354 | 0.927945 |
-| AP / Cyclostationary proxy | 0.775124 | 0.759429 |
-| AP / Cepstral | 0.708757 | 0.806135 |
+| IQ / Bispectrum | 0.251270 | 0.417163 |
+| IQ / HOS | 0.272731 | 0.792399 |
+| IQ / STFT | 0.283481 | 0.454875 |
+| IQ / Cyclostationary | 0.286236 | 0.450929 |
+| HOS / Bispectrum | 0.294336 | 0.449063 |
 
-Lowest linear CKA pairs on Tx1 train-normal:
+높은 CKA pair:
 
-| Pair | Linear CKA | Split-half CCA mean5 |
+| Pair | Linear CKA | Split CCA mean5 |
 | --- | ---: | ---: |
-| IQ / Bispectrum proxy | 0.259008 | 0.486570 |
-| IQ / Cyclostationary proxy | 0.298461 | 0.493240 |
-| IQ / STFT | 0.307034 | 0.426254 |
-| IQ / HOS cumulants | 0.310686 | 0.916320 |
-| IQ / Cepstral | 0.329354 | 0.636425 |
+| STFT / Cepstral | 0.863303 | 0.885524 |
+| FFT / STFT | 0.803549 | 0.935830 |
+| AP / Cyclostationary | 0.782317 | 0.834140 |
+| FFT / Cepstral | 0.765221 | 0.946848 |
+| AP / Cepstral | 0.736148 | 0.856276 |
 
-Interpretation:
+## Single Representation 결과
 
-- FFT, STFT, and cepstral features are highly redundant. They should not all be treated as independent evidence without a relation/fusion control.
-- AP and cyclostationary proxy have high CKA and were also among the more promising screening signals, so their relationship is a strong first cross-view candidate.
-- IQ with bispectrum or cyclostationary proxy has low CKA, suggesting possible complementary information.
-- Split-half CCA remains high for several pairs, so CCA should be used as a diagnostic rather than proof of anomaly separability.
+상위 single representation score:
 
-## CVR-01 Decision
+| Rank | Representation | Method | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| ---: | --- | --- | ---: | ---: | ---: | ---: |
+| 1 | Cyclostationary proxy | PCA residual | 0.580211 | 0.366426 | 13 | 2712 |
+| 2 | FFT | PCA residual | 0.579683 | 0.427518 | 20 | 2543 |
+| 3 | Cepstral | shrinkage Mahalanobis | 0.568717 | 0.379922 | 18 | 2675 |
+| 4 | FFT | shrinkage Mahalanobis | 0.566163 | 0.363721 | 18 | 2718 |
 
-The follow-up topic is researchable, but not yet proven.
+## Relation Pair 결과
 
-The next experiment should move from single-representation screening to explicit cross-view relation scoring. The first candidates are:
+상위 relation score:
 
-- AP with cyclostationary proxy
-- IQ with bispectrum proxy
-- IQ with cyclostationary proxy
-- FFT/STFT/cepstral as a controlled redundant frequency group
+| Rank | Pair | Method | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| ---: | --- | --- | ---: | ---: | ---: | ---: |
+| 1 | AP / HOS | relation PCA residual | 0.651763 | 0.477302 | 22 | 2396 |
+| 2 | Cepstral / Bispectrum | relation PCA residual | 0.611949 | 0.375463 | 9 | 2689 |
+| 3 | FFT / Cyclostationary | relation PCA residual | 0.583309 | 0.394161 | 20 | 2636 |
+| 4 | Cepstral / Bispectrum | relation shrinkage Mahalanobis | 0.582231 | 0.388991 | 12 | 2652 |
+| 5 | IQ / HOS | relation PCA residual | 0.578534 | 0.338208 | 23 | 2783 |
 
-The next scoring features should include cosine distance, absolute difference, elementwise product, PCA residual, and train-normal Mahalanobis-style distance fitted only on Tx1 train-normal.
+## Best Relation Pair Per-Device
 
-## CVR-03 Relation Scoring Setup
-
-This experiment tests whether explicit cross-view relation features improve over the single-representation screen.
-
-Fitting again used Tx1 train-normal only. Evaluation used Tx1 holdout and Tx2-Tx8 only after fitting.
-
-Run profile:
-
-| Item | Value |
-| --- | --- |
-| Tx1 train files | 128 sampled from rebased train manifest |
-| Tx1 holdout files | 80 sampled from rebased test manifest |
-| Tx2-Tx8 anomaly files | 80 per device |
-| windows per file | 16 |
-| per-view projection | train-fitted PCA, 16 components |
-| relation features | absolute difference, elementwise product, cosine distance |
-| relation scoring | z-distance, PCA residual |
-| score threshold | train-normal p95 |
-
-Pairs tested:
-
-- AP / Cyclostationary proxy
-- IQ / Bispectrum proxy
-- IQ / Cyclostationary proxy
-- FFT / STFT
-- FFT / Cepstral
-- STFT / Cepstral
-
-## CVR-03 Relation Scoring Result
-
-Ranking by file-level AUC:
-
-| Rank | Pair | Method | AUC | Min Tx AUC | F1 | FP / 80 normal | FN / 560 anomaly |
-| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | AP / Cyclostationary proxy | relation PCA residual | 0.610402 | 0.478906 | 0.479791 | 23 | 376 |
-| 2 | IQ / Cyclostationary proxy | relation PCA residual | 0.605446 | 0.484844 | 0.403315 | 18 | 414 |
-| 3 | IQ / Bispectrum proxy | relation PCA residual | 0.570379 | 0.465313 | 0.409904 | 18 | 411 |
-| 4 | IQ / Bispectrum proxy | relation z-distance | 0.569129 | 0.480156 | 0.195827 | 2 | 499 |
-| 5 | STFT / Cepstral | relation PCA residual | 0.548795 | 0.477344 | 0.509603 | 22 | 361 |
-
-Interpretation:
-
-- Cross-view relation scoring did not beat the best single-representation screening result, which was Cyclostationary proxy PCA residual at AUC 0.614241.
-- AP / Cyclostationary and IQ / Cyclostationary were the strongest relation pairs, which is consistent with the CKA/CCA diagnostic.
-- Frequency-only relation pairs such as FFT / STFT and FFT / Cepstral were weak, likely because those views are highly redundant.
-- The current relation formulation is not yet strong enough as a final detector. It is still useful as a research direction because pair ranking is coherent with the CKA/CCA structure.
-
-## CVR-03 Decision
-
-Continue the follow-up, but change the next experiment from raw relation PCA residuals to a better-calibrated relation model.
-
-The next candidate should combine:
-
-- the single Cyclostationary proxy score,
-- AP / Cyclostationary relation PCA residual,
-- IQ / Cyclostationary relation PCA residual,
-- IQ / Bispectrum relation with a low-false-positive threshold,
-- a redundancy-controlled frequency group rather than separate FFT/STFT/Cepstral relation scores.
-
-The next fitting method should add shrinkage covariance or robust rank calibration using Tx1 train-normal only.
-
-## CVR-06 Rank-Calibrated Relation Fusion Setup
-
-This experiment tests whether the best single score and the strongest relation scores become more useful after train-normal empirical-rank calibration.
-
-All calibration used Tx1 train-normal only.
-
-Components:
-
-- Cyclostationary proxy PCA residual
-- AP / Cyclostationary relation PCA residual
-- IQ / Cyclostationary relation PCA residual
-- IQ / Bispectrum relation z-distance
-
-Fusion methods:
-
-- rank mean
-- rank max
-- rank top-2 mean
-- cyclostationary-weighted rank fusion
-
-Run profile:
-
-| Item | Value |
-| --- | --- |
-| Tx1 train files | 128 sampled from rebased train manifest |
-| Tx1 holdout files | 80 sampled from rebased test manifest |
-| Tx2-Tx8 anomaly files | 80 per device |
-| windows per file | 16 |
-| component calibration | empirical rank against Tx1 train-normal |
-| score threshold | fused Tx1 train-normal p95 |
-
-## CVR-06 Rank-Calibrated Relation Fusion Result
-
-Fusion ranking:
-
-| Rank | Fusion | AUC | Min Tx AUC | F1 | FP / 80 normal | FN / 560 anomaly |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: |
-| 1 | rank mean | 0.635469 | 0.525547 | 0.402219 | 16 | 415 |
-| 2 | cyclostationary-weighted rank | 0.633382 | 0.528203 | 0.427793 | 17 | 403 |
-| 3 | rank max | 0.625904 | 0.534141 | 0.435724 | 18 | 399 |
-| 4 | rank top-2 mean | 0.622768 | 0.511797 | 0.434316 | 24 | 398 |
-
-Best component comparison:
-
-| Score | AUC | F1 | FP / 80 normal | FN / 560 anomaly |
-| --- | ---: | ---: | ---: | ---: |
-| Cyclostationary proxy PCA residual | 0.614241 | 0.440217 | 14 | 398 |
-| AP / Cyclostationary relation PCA residual | 0.610402 | 0.479791 | 23 | 376 |
-| IQ / Cyclostationary relation PCA residual | 0.605446 | 0.403315 | 18 | 414 |
-| IQ / Bispectrum relation z-distance | 0.569129 | 0.195827 | 2 | 499 |
-
-Per-device AUC for the best fusion, rank mean:
-
-| Device | AUC |
-| --- | ---: |
-| Tx2 | 0.615859 |
-| Tx3 | 0.758516 |
-| Tx4 | 0.533438 |
-| Tx5 | 0.707422 |
-| Tx6 | 0.659687 |
-| Tx7 | 0.647813 |
-| Tx8 | 0.525547 |
-
-Interpretation:
-
-- Rank-calibrated fusion improved AUC over the best single component, from 0.614241 to 0.635469.
-- The improvement is modest but directionally useful, so cross-view relation features should remain in the follow-up study.
-- Tx4 and Tx8 remain weak cases, which prevents any strong claim at this stage.
-- The best current direction is not relation-only detection. It is calibrated fusion of a cyclostationary single score with selected cross-view relation scores.
-
-## CVR-06 Decision
-
-The next experiment should scale the same protocol before adding more complex modeling.
-
-Recommended next steps:
-
-- run the rank-calibrated fusion on the full preserved 399/100 split and all Tx2-Tx8 files,
-- compare p90, p95, and p97 train-normal thresholds,
-- add shrinkage covariance scoring for the relation feature space,
-- keep Tx4 and Tx8 as explicit failure-analysis targets.
-
-## CVR-07 Full Split Threshold Sweep Setup
-
-This experiment scales CVR-06 to the preserved full split before adding a more complex relation model.
-
-Fitting and calibration used Tx1 train-normal only. Tx1 holdout and Tx2-Tx8 were used only for evaluation.
-
-Run profile:
-
-| Item | Value |
-| --- | --- |
-| Tx1 train files | 399 |
-| Tx1 holdout files | 100 |
-| Tx2-Tx8 anomaly files | 500 per device, 3500 total |
-| windows per file | 16 |
-| components | same as CVR-06 |
-| thresholds | train-normal p90, p95, p97 |
-
-## CVR-07 Full Split Threshold Sweep Result
-
-Fusion ranking by AUC:
-
-| Rank | Fusion | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 | p95 F1 | p97 F1 |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | rank top-2 mean | 0.601646 | 0.346271 | 15 | 2764 | 0.278351 | 0.229914 |
-| 2 | rank max | 0.596049 | 0.329608 | 12 | 2807 | 0.264356 | 0.247000 |
-| 3 | cyclostationary-weighted rank | 0.593829 | 0.324427 | 12 | 2820 | 0.262766 | 0.240522 |
-| 4 | rank mean | 0.591980 | 0.317605 | 12 | 2837 | 0.258016 | 0.233871 |
-
-Best component comparison on the full split:
-
-| Score | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
-| --- | ---: | ---: | ---: | ---: |
-| AP / Cyclostationary relation PCA residual | 0.595189 | 0.386327 | 17 | 2658 |
-| Cyclostationary proxy PCA residual | 0.594117 | 0.351947 | 12 | 2750 |
-| IQ / Bispectrum relation z-distance | 0.568200 | 0.267095 | 10 | 2959 |
-| IQ / Cyclostationary relation PCA residual | 0.550620 | 0.324105 | 11 | 2821 |
-
-Per-device AUC for the best full-split fusion, rank top-2 mean:
+Best overall relation score: AP / HOS relation PCA residual.
 
 | Device | AUC | p90 F1 | p90 FN / 500 |
 | --- | ---: | ---: | ---: |
-| Tx2 | 0.574000 | 0.330632 | 398 |
-| Tx3 | 0.620220 | 0.359873 | 387 |
-| Tx4 | 0.585340 | 0.308703 | 406 |
-| Tx5 | 0.616910 | 0.338710 | 395 |
-| Tx6 | 0.600930 | 0.362480 | 386 |
-| Tx7 | 0.630140 | 0.380503 | 379 |
-| Tx8 | 0.583980 | 0.289037 | 413 |
+| Tx2 | 0.663240 | 0.363636 | 384 |
+| Tx3 | 0.541640 | 0.307942 | 405 |
+| Tx4 | 0.658440 | 0.307942 | 405 |
+| Tx5 | 0.473360 | 0.268657 | 419 |
+| Tx6 | 0.802300 | 0.706320 | 215 |
+| Tx7 | 0.614420 | 0.342857 | 392 |
+| Tx8 | 0.808940 | 0.765957 | 176 |
 
-Interpretation:
+## Fusion 결과
 
-- The full-split result is weaker than the sampled CVR-06 result.
-- Rank fusion still slightly improves AUC over the best full-split single component, but only from 0.595189 to 0.601646.
-- p90 is the best operating threshold among p90, p95, and p97 for F1, but recall remains low.
-- The signal is broad but shallow: all anomaly devices are above chance AUC, yet none are cleanly separated.
-- Tx8 is still the weakest practical operating case by p90 F1 and false negatives.
+상위 fusion score:
 
-## CVR-07 Decision
+| Fusion | AUC | p90 F1 | p90 FP / 100 | p90 FN / 3500 |
+| --- | ---: | ---: | ---: | ---: |
+| single PCA rank mean | 0.558096 | 0.417957 | 24 | 2569 |
+| high-CKA relation PCA rank mean | 0.542416 | 0.378229 | 16 | 2680 |
+| all relation PCA rank mean | 0.537249 | 0.386712 | 21 | 2656 |
+| low-CKA relation Mahalanobis rank mean | 0.499743 | 0.275270 | 15 | 2939 |
+| low-CKA relation PCA rank mean | 0.485277 | 0.328188 | 20 | 2809 |
 
-The current handcrafted relation-fusion path is not strong enough as a standalone detector.
+## 해석
 
-The research should continue only if the next step improves the scoring model itself. The next useful experiment is shrinkage covariance or robust Mahalanobis scoring in the relation feature space, fitted only on Tx1 train-normal, followed by the same full-split p90/p95/p97 evaluation.
+이번 실험은 "feature 간 관계성"이 실제로 의미가 있는지 확인하는 데 초점을 둔다.
+
+핵심 관찰:
+
+- Single representation 최고 AUC는 Cyclostationary proxy의 0.580211이다.
+- Relation pair 최고 AUC는 AP / HOS의 0.651763이다.
+- 따라서 단일 feature보다 feature 간 관계를 보는 쪽에서 더 강한 신호가 관찰됐다.
+- 다만 AP / HOS는 Tx6, Tx8에서는 강하지만 Tx5에서는 AUC 0.473360으로 실패한다.
+- 전체 fusion은 relation pair 최고값보다 낮았다.
+- FFT, STFT, Cepstral은 CKA가 높아 서로 중복성이 강하다.
+- IQ와 Bispectrum, IQ와 Cyclostationary는 CKA가 낮아 상보성 후보이지만 현재 scoring에서는 강한 성능으로 이어지지 않았다.
+
+## 현재 결론
+
+연구 가능성은 있다.
+
+가장 중요한 결과는 AP / HOS relation이 single representation보다 더 높은 AUC를 보였다는 점이다. 이는 Tx1 정상에서의 amplitude/phase 구조와 higher-order statistics 사이 관계가 일부 타 송신기에서 달라질 수 있음을 시사한다.
+
+하지만 아직 standalone detector로 주장하기에는 부족하다. Tx5에서 실패하고, 전체 recall도 낮다. 다음 단계는 AP / HOS relation을 중심으로 안정성을 높이는 것이다.
+
+## 다음 실험 후보
+
+- AP / HOS relation feature를 더 자세히 분해해서 어떤 항이 성능을 만드는지 확인
+- Tx5 failure analysis
+- full cyclostationary spectral correlation 구현
+- dense bispectrum 또는 bicoherence feature 구현
+- relation feature에 robust covariance / rank calibration / per-family normalization 적용
+- 기존 power-tail baseline과 score-level fusion 비교

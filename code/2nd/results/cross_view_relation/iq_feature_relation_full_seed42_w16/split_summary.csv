@@ -1,0 +1,10 @@
+split,tx,count
+train,Tx1,400
+holdout,Tx1,100
+anomaly,Tx2,500
+anomaly,Tx3,500
+anomaly,Tx4,500
+anomaly,Tx5,500
+anomaly,Tx6,500
+anomaly,Tx7,500
+anomaly,Tx8,500
