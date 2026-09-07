@@ -62,6 +62,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 2 Autoencoder | 완료 | Tx1 train only GPU 학습, IQ/AP/STFT checkpoint 저장 |
 | Phase 3 Latent Extraction | 완료 | Tx1 split, Tx2-Tx8, Oracle paired latent 저장 |
 | Phase 4 Relation Analysis | 완료 | Tx1-only CCA fitting, CKA table 생성 |
+| Phase 4.5 Tx1-only Relation Screening | 완료 | Tx1 train/calibration만으로 AP-STFT relation 후보가 상위 선별됨 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -110,6 +111,41 @@ Linear CKA에서는 Tx1의 AP-STFT 관계가 가장 뚜렷했다.
 | Oracle | 0.0118 | 0.0013 | 0.0314 |
 
 현재 결과에서는 IQ가 포함된 relation보다 AP-STFT relation이 더 의미 있는 축으로 보인다.
+
+### Tx1-Only Relation Screening
+
+AP-STFT 후보가 anomaly 결과를 보고 선택된 것처럼 보이는 문제를 피하기 위해, Tx2-Tx8/Oracle을 전혀 사용하지 않고 Tx1 train/calibration만으로 relation 후보를 선별했다.
+
+선별 기준:
+
+- Tx1 train CKA
+- Tx1 train CCA mean canonical correlation
+- Tx1 train vs calibration median shift
+- Tx1 train vs calibration IQR stability
+
+Top-5 후보:
+
+| Candidate | Screen score | CKA | CCA mean corr | Median shift |
+| --- | ---: | ---: | ---: | ---: |
+| AP-STFT CCA L2 | 0.7286 | 0.2814 | 0.4479 | 0.0260 |
+| AP-STFT CCA Cosine | 0.7000 | 0.2814 | 0.4479 | 0.0451 |
+| AP-STFT CCA Abs Mean | 0.6643 | 0.2814 | 0.4479 | 0.0547 |
+| AP-STFT Raw Cosine | 0.6179 | 0.2814 | 0.0000 | 0.0187 |
+| IQ-STFT CCA Cosine | 0.5571 | 0.0110 | 0.5119 | 0.0078 |
+
+이 결과는 pair selection 관점에서 AP-STFT relation이 Tx1 내부 구조만으로도 가장 강하게 지지됨을 보여준다. Metric 선택은 ablation으로 유지하며, screened 후보 중 held-out 평가 성능은 AP-STFT CCA cosine이 가장 좋았다.
+
+Screened 후보 평가:
+
+| Candidate | Closed AUROC | Closed F1 | Oracle AUROC | Oracle F1 |
+| --- | ---: | ---: | ---: | ---: |
+| AP-STFT CCA L2 | 0.6648 | 0.1302 | 0.9565 | 0.8992 |
+| AP-STFT CCA Cosine | 0.7673 | 0.5507 | 0.9981 | 0.9697 |
+| AP-STFT CCA Abs Mean | 0.6640 | 0.3245 | 0.9693 | 0.9365 |
+| AP-STFT Raw Cosine | 0.5733 | 0.4635 | 0.9922 | 0.9695 |
+| IQ-STFT CCA Cosine | 0.5921 | 0.3226 | 1.0000 | 0.9808 |
+
+`AP-STFT CCA Cosine`의 device-wise AUROC는 Tx2 0.7235, Tx3 0.7027, Tx4 0.8208, Tx5 0.7316, Tx6 0.7080, Tx7 0.8393, Tx8 0.8450이었다. 모든 Tx2-Tx8 비교에서 anomaly median score가 Tx1 holdout보다 높았고 Mann-Whitney U test도 유의했다.
 
 ### Closed Dataset Test
 
@@ -179,6 +215,7 @@ python rf_multiview_relation/scripts/01_verify_representations.py --config rf_mu
 python rf_multiview_relation/scripts/02_train_autoencoders.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/03_extract_latents.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/04_analyze_relations.py --config rf_multiview_relation/configs/default.yaml
+python rf_multiview_relation/scripts/07_screen_relations.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/05_fit_relation_model.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relation/configs/default.yaml
 ```
@@ -206,6 +243,9 @@ outputs/tables/dataset_audit_oracle.csv
 outputs/tables/representation_examples.csv
 outputs/tables/cca_results.csv
 outputs/tables/cka_results.csv
+outputs/tables/tx1_relation_screening.csv
+outputs/tables/tx1_screened_relation_results.csv
+outputs/tables/tx1_screened_relation_device_results.csv
 outputs/tables/main_results.csv
 outputs/tables/device_results.csv
 outputs/scores/file_scores.csv
