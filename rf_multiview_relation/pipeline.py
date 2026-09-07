@@ -12,7 +12,11 @@ from rf_multiview_relation.detectors.concat import concat_latents
 from rf_multiview_relation.detectors.mahalanobis import MahalanobisDetector
 from rf_multiview_relation.models.autoencoder import make_autoencoder
 from rf_multiview_relation.relation.cca_alignment import CCAAlignment
-from rf_multiview_relation.relation.relation_features import cosine_distance, euclidean_distance, residual_relation
+from rf_multiview_relation.relation.relation_features import (
+    cosine_distance,
+    euclidean_distance,
+    residual_relation,
+)
 
 
 PAIR_KEYS: tuple[tuple[str, str, str], ...] = (
@@ -28,6 +32,13 @@ MAIN_METHODS: tuple[str, ...] = (
     "concat",
     "raw_relation",
     "cca_relation",
+    "cca_compact_relation",
+    "ap_stft_cca_cosine",
+    "ap_stft_cca_l2",
+    "ap_stft_cca_abs_mean",
+    "ap_stft_cca_cosine_direct",
+    "ap_stft_cca_l2_direct",
+    "ap_stft_cca_abs_mean_direct",
     "absolute_plus_relation",
     "score_fusion",
 )
@@ -168,6 +179,35 @@ def raw_relation_feature_matrix(latents: dict[str, np.ndarray]) -> np.ndarray:
     return np.concatenate(chunks, axis=1).astype(np.float64)
 
 
+def cca_compact_relation_feature_matrix(
+    latents: dict[str, np.ndarray],
+    cca_models: dict[str, CCAAlignment],
+) -> np.ndarray:
+    pairs = cca_pair_projections(latents, cca_models)
+    chunks = []
+    for pair_name, _, _ in PAIR_KEYS:
+        left, right = pairs[pair_name]
+        chunks.append(cosine_distance(left, right)[:, np.newaxis])
+        chunks.append(euclidean_distance(left, right)[:, np.newaxis])
+    return np.concatenate(chunks, axis=1).astype(np.float64)
+
+
+def cca_pair_feature_matrix(
+    latents: dict[str, np.ndarray],
+    cca_models: dict[str, CCAAlignment],
+    pair_name: str,
+    metric: str,
+) -> np.ndarray:
+    left, right = cca_pair_projections(latents, cca_models)[pair_name]
+    if metric == "cosine":
+        return cosine_distance(left, right)[:, np.newaxis].astype(np.float64)
+    if metric == "l2":
+        return euclidean_distance(left, right)[:, np.newaxis].astype(np.float64)
+    if metric == "abs_mean":
+        return np.mean(np.abs(left - right), axis=1, keepdims=True).astype(np.float64)
+    raise ValueError(f"Unsupported CCA pair metric: {metric}")
+
+
 def feature_matrix_for_method(
     method: str,
     latents: dict[str, np.ndarray],
@@ -184,6 +224,22 @@ def feature_matrix_for_method(
         if cca_models is None:
             raise ValueError("cca_models are required for cca_relation")
         return cca_relation_feature_matrix(latents, cca_models, mode=relation_mode)
+    if method == "cca_compact_relation":
+        if cca_models is None:
+            raise ValueError("cca_models are required for cca_compact_relation")
+        return cca_compact_relation_feature_matrix(latents, cca_models)
+    if method == "ap_stft_cca_cosine":
+        if cca_models is None:
+            raise ValueError("cca_models are required for ap_stft_cca_cosine")
+        return cca_pair_feature_matrix(latents, cca_models, "ap_stft", "cosine")
+    if method == "ap_stft_cca_l2":
+        if cca_models is None:
+            raise ValueError("cca_models are required for ap_stft_cca_l2")
+        return cca_pair_feature_matrix(latents, cca_models, "ap_stft", "l2")
+    if method == "ap_stft_cca_abs_mean":
+        if cca_models is None:
+            raise ValueError("cca_models are required for ap_stft_cca_abs_mean")
+        return cca_pair_feature_matrix(latents, cca_models, "ap_stft", "abs_mean")
     if method == "absolute_plus_relation":
         if cca_models is None:
             raise ValueError("cca_models are required for absolute_plus_relation")
@@ -221,6 +277,12 @@ def score_windows_for_method(
             feature_matrix_for_method("cca_relation", latents, cca_models, relation_mode=relation_mode)
         )
         return fusion.score(concat_scores, relation_scores)
+    if method == "ap_stft_cca_cosine_direct":
+        return cca_pair_feature_matrix(latents, cca_models, "ap_stft", "cosine").reshape(-1)
+    if method == "ap_stft_cca_l2_direct":
+        return cca_pair_feature_matrix(latents, cca_models, "ap_stft", "l2").reshape(-1)
+    if method == "ap_stft_cca_abs_mean_direct":
+        return cca_pair_feature_matrix(latents, cca_models, "ap_stft", "abs_mean").reshape(-1)
     return detectors[method].score(feature_matrix_for_method(method, latents, cca_models, relation_mode=relation_mode))
 
 

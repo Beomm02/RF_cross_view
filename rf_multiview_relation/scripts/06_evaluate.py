@@ -32,6 +32,13 @@ DISPLAY_NAMES = {
     "concat": "Concat",
     "raw_relation": "Raw Relation",
     "cca_relation": "Proposed CCA Relation",
+    "cca_compact_relation": "CCA Compact Relation",
+    "ap_stft_cca_cosine": "AP-STFT CCA Cosine",
+    "ap_stft_cca_l2": "AP-STFT CCA L2",
+    "ap_stft_cca_abs_mean": "AP-STFT CCA Abs Mean",
+    "ap_stft_cca_cosine_direct": "AP-STFT CCA Cosine Direct",
+    "ap_stft_cca_l2_direct": "AP-STFT CCA L2 Direct",
+    "ap_stft_cca_abs_mean_direct": "AP-STFT CCA Abs Mean Direct",
     "absolute_plus_relation": "Concat + Relation",
     "score_fusion": "Score Fusion",
 }

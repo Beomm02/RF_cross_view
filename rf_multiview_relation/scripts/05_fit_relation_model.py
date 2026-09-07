@@ -54,7 +54,7 @@ def fit_detectors(
 ) -> dict[str, Any]:
     detectors: dict[str, Any] = {}
     for method in methods:
-        if method == "score_fusion":
+        if method == "score_fusion" or method.endswith("_direct"):
             continue
         features = feature_matrix_for_method(method, train_latents, cca_models, relation_mode=relation_mode)
         detectors[method] = fit_mahalanobis(features, config)
