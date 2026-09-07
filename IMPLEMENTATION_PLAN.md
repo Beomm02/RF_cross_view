@@ -1,23 +1,18 @@
 # Implementation Plan
 
-Updated on 2026-09-07 for the final Tx1-only one-class multi-view relation specification.
+Updated on 2026-09-07 after cleanup to match the final specification.
 
-## Research Definition
+## Research Objective
 
-Main question:
-
-```text
-In a Tx1-only one-class setting, does explicit IQ/AP/STFT multi-view relation
-provide complementary anomaly information beyond learned absolute latent features?
-```
-
-The study is not framed as:
+Implement and evaluate Tx1-only one-class RF transmitter anomaly detection using:
 
 ```text
-Relation must outperform every deep feature baseline.
+learned absolute latent features
++
+explicit IQ/AP/STFT multi-view relation features
 ```
 
-The central comparison is:
+Primary comparison:
 
 ```text
 Concat
@@ -27,57 +22,29 @@ vs
 Concat + Relation
 ```
 
-## Strict One-Class Protocol
+## One-Class Boundary
 
-Fitting data:
-
-```text
-Tx1 only
-```
-
-Evaluation data:
+Fitting allowed:
 
 ```text
-Tx1 holdout: normal test
-Tx2-Tx8: unseen anomaly test
-Oracle SigMF: external anomaly test
+Tx1 fit/train only
 ```
 
-The following must use only Tx1 fit/training data:
+Calibration allowed:
 
-- encoder/autoencoder training
-- StandardScaler fitting
-- CCA fitting
-- covariance fitting
-- threshold calibration
-- hyperparameter selection
+```text
+Tx1 calibration only
+```
 
-Tx2-Tx8 and Oracle are final evaluation data only.
+Evaluation only:
 
-## Current Dataset Split
+```text
+Tx1 holdout
+Tx2-Tx8
+Oracle SigMF
+```
 
-| Split | Role | Files |
-| --- | --- | ---: |
-| Tx1 fit/train | AE, CCA, covariance fitting | 320 |
-| Tx1 calibration | threshold and score-fusion robust reference | 80 |
-| Tx1 holdout | normal test | 100 |
-| Tx2-Tx8 | unseen anomaly test | 500 each |
-| Oracle SigMF | external anomaly test | 128 |
-
-All splits are file-level. Windowing happens only after files are assigned to a split.
-
-## Reused Files
-
-| File | Reuse |
-| --- | --- |
-| `code/2nd/preprocessing.py` | MAT IQ loading and validation |
-| `code/2nd/dataset.py` | window indexing policy reference |
-| `code/2nd/model.py` | Conv1D/Conv2D encoder architecture reference |
-| `code/2nd/evaluate_final_oracle_confusion.py` | SigMF dtype/count reference only |
-| `code/2nd/evaluate.py` | metric and aggregation reference |
-| `code/2nd/cross_view_relation/representation_screening.py` | CKA/CCA diagnostic reference |
-
-## New File Structure
+## Current Package
 
 ```text
 rf_multiview_relation/
@@ -85,117 +52,59 @@ rf_multiview_relation/
 │   ├── default.yaml
 │   └── ablation.yaml
 ├── data/
-│   ├── dataset.py
-│   ├── sigmf.py
-│   ├── splits.py
-│   ├── windowing.py
-│   └── representations.py
 ├── models/
-│   ├── encoder_iq.py
-│   ├── encoder_ap.py
-│   ├── encoder_stft.py
-│   ├── decoders.py
-│   └── autoencoder.py
 ├── relation/
-│   ├── cca_alignment.py
-│   ├── cka.py
-│   ├── relation_features.py
-│   └── pair_analysis.py
 ├── detectors/
-│   ├── mahalanobis.py
-│   ├── single_view.py
-│   ├── concat.py
-│   ├── relation.py
-│   └── combined.py
 ├── scripts/
-│   ├── 00_audit_dataset.py
-│   ├── 01_verify_representations.py
-│   ├── 02_train_autoencoders.py
-│   ├── 03_extract_latents.py
-│   ├── 04_analyze_relations.py
-│   ├── 05_fit_detectors.py
-│   ├── 06_evaluate.py
-│   ├── 07_ablation.py
-│   └── 08_run_all.py
-├── utils/
-│   ├── config.py
-│   ├── io.py
-│   ├── metrics.py
-│   ├── plotting.py
-│   └── seed.py
-├── outputs/
-├── tests/
-├── requirements.txt
-└── README.md
+└── utils/
 ```
 
-`outputs/` is intentionally ignored by Git.
-
-## Module Input/Output
+## Module Inputs And Outputs
 
 | Module | Input | Output |
 | --- | --- | --- |
-| `data/representations.py` | IQ window `[2048,2]` | IQ `[2,2048]`, AP `[2,2048]`, STFT `[1,128,31]` |
-| `models/encoder_iq.py` | batch `[B,2,2048]` | `z_iq [B,64]` |
-| `models/encoder_ap.py` | batch `[B,2,2048]` | `z_ap [B,64]` |
-| `models/encoder_stft.py` | batch `[B,1,128,31]` | `z_stft [B,64]` |
-| `relation/cca_alignment.py` | paired latents `[N,64]`, `[N,64]` | canonical projections `[N,16]`, correlations |
-| `relation/relation_features.py` | three CCA-projected pairs | relation vector `[N,48]` for signed/absolute residual |
-| `detectors/mahalanobis.py` | feature matrix `[N,D]` | window anomaly score `[N]` |
-| `detectors/combined.py` | absolute score, relation score | fused score with fixed `alpha=0.5` |
+| `data/mat.py` | `.mat` path, key `rxData` | raw IQ `[N,2]` |
+| `data/sigmf.py` | Oracle `.sigmf-data` path | dtype/count/metadata |
+| `data/windowing.py` | sample count, window config | window starts |
+| `data/representations.py` | window `[2048,2]` | IQ `[2,2048]`, AP `[2,2048]`, STFT `[1,128,31]` |
+| `models/*` | view tensors | latent `[B,64]` and reconstruction |
+| `relation/cca_alignment.py` | paired Tx1 latents | CCA projections `[B,16]` |
+| `relation/relation_features.py` | CCA pair projections | relation `[B,48]` |
+| `detectors/mahalanobis.py` | feature `[B,D]` | anomaly scores `[B]` |
+| `detectors/combined.py` | absolute and relation scores | fused score `[B]` |
+| `pipeline.py` | latent dictionaries and fitted models | shared relation, scoring, leakage utilities |
 
 ## Tensor Shapes
 
 ```text
-Raw loaded IQ:              [N, 2]
-Windowed raw IQ:            [2048, 2]
-IQ view:                    [B, 2, 2048]
-AP view:                    [B, 2, 2048]
-STFT view:                  [B, 1, 128, 31]
-z_iq / z_ap / z_stft:       [B, 64]
-Concat latent:              [B, 192]
-CCA pair projection:        [B, 16]
-CCA relation residual:      [B, 48]
-Absolute + relation direct: [B, 240]
+Raw IQ:                  [N, 2]
+Window:                  [2048, 2]
+IQ view:                 [B, 2, 2048]
+AP view:                 [B, 2, 2048]
+STFT view:               [B, 1, 128, 31]
+z_iq / z_ap / z_stft:    [B, 64]
+Concat latent:           [B, 192]
+CCA projection:          [B, 16]
+CCA relation residual:   [B, 48]
+Absolute + relation:     [B, 240]
 ```
 
-## Training Flow
+## Implemented Scripts
 
-1. Run dataset audit and file-level split.
-2. Verify IQ/AP/STFT examples.
-3. Train IQ, AP, and STFT autoencoders independently using Tx1 fit files only.
-4. Save encoder and autoencoder checkpoints under `outputs/checkpoints/`.
-5. Do not use Tx1 calibration, Tx1 holdout, Tx2-Tx8, or Oracle for AE optimization.
+| Phase | Script | Role |
+| --- | --- | --- |
+| 0 | `scripts/00_audit_dataset.py` | audit Tx/Oracle files and create Tx1 file-level splits |
+| 1 | `scripts/01_verify_representations.py` | generate IQ/AP/STFT examples and shape table |
+| 2 | `scripts/02_train_autoencoders.py` | train IQ/AP/STFT autoencoders on Tx1 train only |
+| 3 | `scripts/03_extract_latents.py` | extract paired window latents for Tx1, Tx2-Tx8, Oracle |
+| 4 | `scripts/04_analyze_relations.py` | fit Tx1-only CCA and compute CKA analysis |
+| 5 | `scripts/05_fit_relation_model.py` | fit baselines, relation models, fusion, and Tx1 calibration thresholds |
+| 6 | `scripts/06_evaluate.py` | compute file-level scores, metrics, tests, and figures |
+| 8 | `scripts/08_run_all.py` | orchestrate the full reproducible pipeline |
 
-Checkpoint format:
+## Outputs
 
-```text
-view
-config
-epoch
-best_calibration_loss
-model_state_dict
-encoder_state_dict
-stft_shape
-```
-
-Calibration loss is monitored using Tx1 calibration only. It is not an anomaly threshold result.
-
-## Latent Extraction Flow
-
-For every split/device:
-
-```text
-file_id
-window_id
-device
-split
-z_iq
-z_ap
-z_stft
-```
-
-Output:
+Latents:
 
 ```text
 outputs/latents/tx1_train.npz
@@ -207,254 +116,92 @@ outputs/latents/tx8.npz
 outputs/latents/oracle.npz
 ```
 
-Latents are local generated artifacts and are not uploaded to GitHub.
-
-## Relationship Analysis Flow
-
-Using Tx1 fit latents only:
-
-1. Fit CCA for IQ-AP, IQ-STFT, AP-STFT.
-2. Save canonical correlations:
-
-```text
-outputs/tables/cca_results.csv
-```
-
-3. Compute dataset-level CKA per device:
-
-```text
-outputs/tables/cka_results.csv
-```
-
-First interpretation target:
-
-```text
-Is R_Tx1 stable?
-```
-
-## Detector Flow
-
-### A. Single View
-
-```text
-z_iq   -> Mahalanobis
-z_ap   -> Mahalanobis
-z_stft -> Mahalanobis
-```
-
-### B. Absolute Multi-View Concat
-
-```text
-[z_iq; z_ap; z_stft] -> Mahalanobis
-```
-
-### C. Relation Only
-
-```text
-CCA signed residual R -> Mahalanobis
-```
-
-### D. Absolute + Relation
-
-Direct version:
-
-```text
-[z_iq; z_ap; z_stft; R] -> Mahalanobis
-```
-
-Score-fusion version:
-
-```text
-S_combined = 0.5 * robust(S_abs) + 0.5 * robust(S_rel)
-```
-
-The fusion reference distribution is Tx1 calibration only. `alpha` is fixed at `0.5` unless a later Tx1-only sensitivity analysis is explicitly run.
-
-## Evaluation Flow
-
-Window score output:
+Each latent file contains:
 
 ```text
 file_id
 window_id
+window_start
 device
-label
-method
-score
+split
+z_iq
+z_ap
+z_stft
 ```
 
-File score output:
+Main tables:
 
 ```text
-file_id
-device
-label
-method
-num_windows
-file_score
-threshold
-prediction
-```
-
-Main file aggregation:
-
-```text
-p60
-```
-
-Main threshold:
-
-```text
-P95(Tx1 calibration file scores)
-```
-
-Required metrics:
-
-```text
-AUROC
-AUPRC
-accuracy
-precision
-recall
-F1
-FPR
-TNR
-```
-
-## Required Result Tables
-
-```text
-outputs/tables/main_results.csv
-outputs/tables/device_results.csv
 outputs/tables/cca_results.csv
 outputs/tables/cka_results.csv
-outputs/tables/ablation_results.csv
+outputs/tables/detector_thresholds.csv
+outputs/tables/main_results.csv
+outputs/tables/device_results.csv
+outputs/tables/statistical_tests.csv
+outputs/tables/score_complementarity.csv
 ```
 
-## Required Figures
+Main scores and figures:
 
 ```text
-outputs/figures/pipeline.png
-outputs/figures/example_iq.png
-outputs/figures/example_ap.png
-outputs/figures/example_stft.png
-outputs/figures/relation_score_distribution.png
-outputs/figures/roc_comparison.png
-outputs/figures/cca_heatmap.png
-outputs/figures/cka_heatmap.png
+outputs/scores/file_scores.csv
+outputs/figures/score_distribution.png
+outputs/figures/roc_curve.png
+outputs/figures/relation_heatmap.png
+outputs/figures/oracle_distribution.png
 outputs/figures/absolute_vs_relation_score.png
-outputs/figures/oracle_score_distribution.png
 ```
 
-## Implementation Order
-
-1. Repository audit
-2. Dataset audit
-3. File-level split verification
-4. IQ/AP/STFT representation verification
-5. Autoencoder training
-6. Latent extraction
-7. CCA/CKA relationship analysis
-8. Single-view baseline
-9. Multi-view concat baseline
-10. Raw relation baseline
-11. CCA relation detector
-12. Absolute + relation detector
-13. Minimal Tx1-vs-Tx2 feasibility experiment
-14. Full Tx2-Tx8 evaluation
-15. Oracle external evaluation
-16. Ablation
-17. Tables / figures
-18. Reproducible run-all script
-
-## Commands
-
-From repository root:
+Window-score CSV export is available but optional because it can be very large:
 
 ```bash
-python rf_multiview_relation/scripts/00_audit_dataset.py --config rf_multiview_relation/configs/default.yaml
-python rf_multiview_relation/scripts/01_verify_representations.py --config rf_multiview_relation/configs/default.yaml
-python rf_multiview_relation/scripts/02_train_autoencoders.py --config rf_multiview_relation/configs/default.yaml
-python rf_multiview_relation/scripts/03_extract_latents.py --config rf_multiview_relation/configs/default.yaml
-python rf_multiview_relation/scripts/04_analyze_relations.py --config rf_multiview_relation/configs/default.yaml
-python rf_multiview_relation/scripts/05_fit_detectors.py --config rf_multiview_relation/configs/default.yaml
-python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relation/configs/default.yaml --scenario minimal_tx2
-python rf_multiview_relation/scripts/07_ablation.py --config rf_multiview_relation/configs/default.yaml --ablation-config rf_multiview_relation/configs/ablation.yaml
+python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relation/configs/default.yaml --write-window-scores
+```
+
+## Data Leakage Prevention
+
+- `00_audit_dataset.py` creates Tx1 train/calibration/holdout manifests at file level.
+- `pipeline.assert_no_file_leakage()` checks Tx1 train, calibration, and holdout file IDs after latent extraction.
+- `pipeline.assert_tx1_only_fit()` is called before fitting CCA, covariance models, and calibration thresholds.
+- Tx2-Tx8 and Oracle are loaded only by extraction/evaluation steps and are not used for fitting.
+- All generated outputs, checkpoints, latents, pickles, raw data, and local logs are ignored by Git.
+
+## Smoke Validation
+
+Validated after cleanup with:
+
+```bash
+python rf_multiview_relation/scripts/08_run_all.py --config rf_multiview_relation/configs/default.yaml --run-name phase2_smoke_after_cleanup --minimal --skip-audit --skip-representation-check --skip-training --max-files-per-split 2 --device auto
+```
+
+This confirmed:
+
+```text
+Phase 3 latent extraction
+Phase 4 CCA/CKA analysis
+Phase 5 Tx1-only fitting and threshold calibration
+Phase 6 minimal Tx1 holdout vs Tx2 evaluation
+```
+
+## Main Commands
+
+Repository root:
+
+```bash
 python rf_multiview_relation/scripts/08_run_all.py --config rf_multiview_relation/configs/default.yaml
 ```
 
-From inside `rf_multiview_relation/`, the final target command is:
+Inside `rf_multiview_relation/`:
 
 ```bash
 python scripts/08_run_all.py --config configs/default.yaml
 ```
 
-## Data Leakage Prevention
+## Immediate Execution Plan
 
-File-level assertions:
-
-```python
-assert train_files.isdisjoint(calibration_files)
-assert train_files.isdisjoint(test_files)
-assert calibration_files.isdisjoint(test_files)
-```
-
-Device-level fitting assertions:
-
-```python
-assert set(model_fit_devices) == {"Tx1"}
-assert set(cca_fit_devices) == {"Tx1"}
-assert set(threshold_fit_devices) == {"Tx1"}
-```
-
-Policy:
-
-- no threshold changes after seeing Tx2-Tx8
-- no CCA dimension changes based on anomaly performance
-- no score normalization using Tx2-Tx8 or Oracle
-- no Oracle use before final external evaluation
-
-## Minimal Feasibility Experiment
-
-Before full Tx2-Tx8:
-
-```text
-Normal: Tx1 holdout
-Anomaly: Tx2
-Methods: IQ-only, Concat, CCA Relation, Absolute + Relation
-```
-
-Outputs:
-
-```text
-AUROC
-F1
-Tx1/Tx2 score distribution
-corr(S_abs, S_rel)
-absolute_vs_relation_score.png
-```
-
-Decision checks:
-
-1. Tx1 relation distribution is stable.
-2. Tx2 relation score increases or shifts.
-3. Relation score is not identical to absolute score.
-4. `Concat + Relation > Concat` is enough to support the complementary-information story.
-
-## Current Status
-
-Completed:
-
-- `CURRENT_CODE_AUDIT.md`
-- `IMPLEMENTATION_PLAN.md`
-- Phase 0 dataset audit
-- Phase 1 representation verification
-- Phase 2 AE training implementation and 1-file smoke run
-- config re-established to the 2026-09-07 specification
-- core `relation/` and `detectors/` module locations established
-
-Next:
-
-```text
-Full Tx1-only AE training, then latent extraction.
-```
+1. Commit and push the cleanup plus Phase 3-8 implementation; ignored outputs and local logs stay out of GitHub.
+2. Start full Tx1-only AE training with seed 42.
+3. Extract full latents for Tx1 train/calibration/holdout, Tx2-Tx8, and Oracle.
+4. Run CCA/CKA relation analysis.
+5. Fit Tx1-only relation/baseline detectors and Tx1 calibration thresholds.
+6. Evaluate minimal Tx2 first, then full Tx2-Tx8 and Oracle outputs.

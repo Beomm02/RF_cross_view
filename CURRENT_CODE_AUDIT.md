@@ -1,126 +1,141 @@
 # Current Code Audit
 
-Updated on 2026-09-07 for the Tx1-only one-class multi-view relation specification.
+Updated on 2026-09-07 after re-establishing the repository around the final Tx1-only specification.
 
-## Repository Snapshot
+## Scope
 
-Working root:
+This repository is now scoped to:
 
 ```text
-C:\Users\Beomm\Desktop\project\모델 관련 자료\project
+RF Multi-View Relation 기반 One-Class 이상 탐지
 ```
 
-Main research package:
+Current main package:
 
 ```text
 rf_multiview_relation/
 ```
 
-Legacy experiment code remains under `code/` and is used only as a reference or for small reusable utilities. The new protocol must not reuse the previous Tx1-Tx4 pooled-normal assumption as the main study.
+Raw RF data remains local under `data/` and is not tracked by Git.
 
-## Existing Code Audit Matrix
+## Cleanup Decision
 
-| Existing file | Existing function/class | Purpose | Can reuse? | Required modification | Risk |
+Files not aligned with the current specification are removed from the active repository:
+
+- legacy `code/` experiments
+- legacy `docs/` materials
+- legacy cross-view handcrafted feature experiments
+- old Tx1-Tx4 known-normal result tables
+- old project organization notes
+- old generated report/presentation outputs
+
+The only retained source structure is the new `rf_multiview_relation/` package plus top-level research control documents.
+
+## Current Repository Structure
+
+| Path | Purpose | Based on current spec? | Risk |
+| --- | --- | --- | --- |
+| `.gitignore` | Prevent raw data, outputs, checkpoints, caches, logs from Git upload | Yes | Low |
+| `README.md` | Current research overview and run commands | Yes | Low |
+| `CURRENT_CODE_AUDIT.md` | Active-code audit after cleanup | Yes | Low |
+| `IMPLEMENTATION_PLAN.md` | Implementation plan for the final pipeline | Yes | Low |
+| `rf_multiview_relation/configs/default.yaml` | Main Tx1-only configuration | Yes | Low |
+| `rf_multiview_relation/configs/ablation.yaml` | Planned ablation settings | Yes | Low |
+| `rf_multiview_relation/data/mat.py` | MAT `rxData` IQ loader and validation | Yes | Low |
+| `rf_multiview_relation/data/sigmf.py` | Oracle SigMF discovery and metadata parsing | Yes | Medium |
+| `rf_multiview_relation/data/splits.py` | Tx1 file-level split and leakage checks | Yes | Low |
+| `rf_multiview_relation/data/windowing.py` | Deterministic window selection | Yes | Low |
+| `rf_multiview_relation/data/representations.py` | IQ/AP/STFT representation builders | Yes | Medium |
+| `rf_multiview_relation/data/dataset.py` | Streaming view batch iterator | Yes | Medium |
+| `rf_multiview_relation/models/*` | IQ/AP/STFT encoders, decoders, autoencoder wrapper | Yes | Medium |
+| `rf_multiview_relation/relation/*` | CCA alignment, CKA, relation feature helpers | Yes | Medium |
+| `rf_multiview_relation/detectors/*` | Mahalanobis and score fusion helpers | Yes | Medium |
+| `rf_multiview_relation/utils/*` | Config, IO, metrics, plotting, seed helpers | Yes | Low |
+| `rf_multiview_relation/scripts/00_audit_dataset.py` | Phase 0 dataset audit | Yes | Low |
+| `rf_multiview_relation/scripts/01_verify_representations.py` | Phase 1 representation verification | Yes | Low |
+| `rf_multiview_relation/scripts/02_train_autoencoders.py` | Phase 2 Tx1-only AE training | Yes | Medium |
+| `rf_multiview_relation/scripts/03_extract_latents.py` | Phase 3 paired latent extraction | Yes | Medium |
+| `rf_multiview_relation/scripts/04_analyze_relations.py` | Phase 4 CCA/CKA relation analysis | Yes | Medium |
+| `rf_multiview_relation/scripts/05_fit_relation_model.py` | Phase 5 Tx1-only detector fitting and calibration | Yes | Medium |
+| `rf_multiview_relation/scripts/06_evaluate.py` | Phase 6 metrics, statistical tests, figures | Yes | Medium |
+| `rf_multiview_relation/scripts/08_run_all.py` | Full pipeline orchestration | Yes | Low |
+
+## Implemented Functions And Classes
+
+| File | Function/class | Purpose | Can reuse? | Required modification | Risk |
 | --- | --- | --- | --- | --- | --- |
-| `code/2nd/preprocessing.py` | `load_iq_from_mat` | Load MATLAB `rxData` complex samples as `[N,2]` I/Q float array | Yes | Keep as low-level MAT loader | Low |
-| `code/2nd/preprocessing.py` | `validate_iq` | Check `[N,2]`, NaN/Inf, minimum length | Yes | Reuse in audit/dataset scripts | Low |
-| `code/2nd/preprocessing.py` | `normalize_iq` | Power/zscore/minmax/DC normalization | Partial | Main spec uses window-level energy normalization, so use this only for audit or file-level sanity checks | Medium |
-| `code/2nd/preprocessing.py` | `build_iq_view` | Old IQ view construction | Partial | New implementation lives in `rf_multiview_relation/data/representations.py` | Low |
-| `code/2nd/preprocessing.py` | `build_ap_view` | Old AP view with phase diff | No for main | Main spec requires 2-channel amplitude/phase only | Medium |
-| `code/2nd/preprocessing.py` | `build_freq_view` | FFT/STFT magnitude helper | Reference only | New STFT builder must return `[1,F,T]` and use config names from new spec | Medium |
-| `code/2nd/dataset.py` | `RFWindowDataset` | Legacy PyTorch MAT window dataset | Reference only | New dataset must preserve Tx1-only split boundaries and exact IQ/AP/STFT shapes | Medium |
-| `code/2nd/dataset.py` | file-window index construction | Uniform `max_windows_per_file` selection | Yes | Reimplemented in `rf_multiview_relation/data/windowing.py` | Low |
-| `code/2nd/evaluate_final_oracle_confusion.py` | `discover_oracle_files` | Locate Oracle `.sigmf-data` files | Partial | Extracted into clean `rf_multiview_relation/data/sigmf.py` | Low |
-| `code/2nd/evaluate_final_oracle_confusion.py` | `sigmf_dtype_and_count`, `sigmf_memmap` | Infer SigMF dtype/count and memmap | Yes | Reimplemented without importing monolithic final evaluator | Medium |
-| `code/2nd/model.py` | `RFEncoder` | Existing Conv1D RF encoder pattern | Reference only | New IQ/AP encoders follow spec exactly and use 64-D output | Low |
-| `code/2nd/model.py` | `STFTConv2DEncoder` | Existing Conv2D STFT encoder pattern | Reference only | New `STFTEncoder` follows current spec and decoder pair | Low |
-| `code/2nd/model.py` | `MultiViewModel`, `consistency_loss` | Previous multi-view consistency model | No for main | Current method uses AE pretraining, CCA relation, Mahalanobis | Medium |
-| `code/2nd/dagmm_module.py` | `DAGMM` | Deep density model | Optional later | Treat only as low-priority comparison, not proposed method | Medium |
-| `code/2nd/evaluate.py` | `binary_metrics`, `roc_auc_score` | Evaluation helpers | Partial | New `utils/metrics.py` adds AUROC/AUPRC/FPR/TNR with consistent names | Low |
-| `code/2nd/evaluate.py` | `aggregate_by_file` | Legacy file score aggregation | Partial | New main needs p60 plus ablation modes; implement in new scoring/evaluation path | Medium |
-| `code/2nd/cross_view_relation/representation_screening.py` | `linear_cka`, `cca_summary` | Previous relation diagnostics | Reference only | New `relation/cka.py` and `relation/cca_alignment.py` follow Tx1-only latent protocol | Medium |
-| `code/one_class_self_consistency/run_experiment.py` | `aggregate_file_scores`, `metrics_at_threshold` | One-class scoring examples | Reference only | Useful logic, but not the current neural CCA relation pipeline | Medium |
+| `data/mat.py` | `load_iq_from_mat` | Load complex MAT `rxData` as `[N,2]` | Yes | None | Low |
+| `data/mat.py` | `validate_iq` | Validate IQ shape, length, NaN/Inf | Yes | None | Low |
+| `data/mat.py` | `normalize_iq` | Audit-time normalization check | Yes | Main training uses window energy normalization | Low |
+| `data/sigmf.py` | `discover_sigmf_data_files` | Find standard Oracle `.sigmf-data` | Yes | Add full Oracle window dataset in Phase 3 | Medium |
+| `data/sigmf.py` | `infer_sigmf_dtype_and_count` | Infer complex64/complex128 and count | Yes | None | Medium |
+| `data/splits.py` | `split_tx1_files` | Create 320/80/100 Tx1 split | Yes | None | Low |
+| `data/splits.py` | `assert_disjoint` | File-level leakage assertion | Yes | Use in all later scripts | Low |
+| `data/windowing.py` | `window_start_positions` | Deterministic selected window starts | Yes | None | Low |
+| `data/representations.py` | `build_iq_view` | IQ `[2,2048]` | Yes | None | Low |
+| `data/representations.py` | `build_ap_view` | AP `[2,2048]` with configurable unwrap | Yes | Later ablation for raw phase/scaling | Medium |
+| `data/representations.py` | `build_stft_view` | STFT log magnitude `[1,128,31]` | Yes | None | Medium |
+| `models/encoder_iq.py` | `IQEncoder` | Conv1D IQ encoder to 64-D latent | Yes | None | Medium |
+| `models/encoder_ap.py` | `APEncoder` | Independent AP Conv1D encoder | Yes | None | Medium |
+| `models/encoder_stft.py` | `STFTEncoder` | Conv2D STFT encoder to 64-D latent | Yes | None | Medium |
+| `models/autoencoder.py` | `ViewAutoencoder`, `make_autoencoder` | AE wrapper/factory | Yes | None | Medium |
+| `relation/cca_alignment.py` | `CCAAlignment` | Tx1-only CCA fitting and transform | Yes | Validate on real latents | Medium |
+| `relation/cka.py` | `linear_cka` | Dataset-level relation analysis | Yes | None | Low |
+| `relation/relation_features.py` | `residual_relation`, `distance_relation` | CCA/raw relation features | Yes | Integrate into detector scripts | Medium |
+| `detectors/mahalanobis.py` | `MahalanobisDetector` | LedoitWolf if available, fallback shrinkage otherwise | Yes | Prefer sklearn when installed | Medium |
+| `detectors/combined.py` | `RobustScoreFusion` | Fixed-alpha absolute/relation score fusion | Yes | Fit reference on Tx1 calibration only | Medium |
+| `pipeline.py` | shared helpers | CCA fitting, relation features, leakage checks, aggregation, pickle IO | Yes | None | Medium |
+| `utils/metrics.py` | `binary_metrics` | AUROC/AUPRC/F1/FPR/TNR | Yes | None | Low |
 
-## New Code Already Established
+## Completed Checks
 
-| New file | Purpose | Status |
-| --- | --- | --- |
-| `rf_multiview_relation/configs/default.yaml` | Canonical Tx1-only one-class config | Re-established to new spec |
-| `rf_multiview_relation/configs/ablation.yaml` | Planned ablation settings | Added |
-| `rf_multiview_relation/data/windowing.py` | Deterministic window count/start helpers | Implemented |
-| `rf_multiview_relation/data/splits.py` | Tx1 train/calibration/holdout split and leakage assertions | Implemented |
-| `rf_multiview_relation/data/sigmf.py` | Clean Oracle SigMF discovery and metadata parsing | Implemented |
-| `rf_multiview_relation/data/representations.py` | IQ/AP/STFT builders matching `[2,2048]`, `[2,2048]`, `[1,128,31]` | Implemented |
-| `rf_multiview_relation/models/*` | IQ/AP/STFT encoders, decoders, AE wrapper | Implemented and smoke-tested |
-| `rf_multiview_relation/relation/*` | CCA alignment, CKA, relation feature helpers | Established |
-| `rf_multiview_relation/detectors/*` | Mahalanobis, concat, single-view, relation, score fusion helpers | Established |
-| `rf_multiview_relation/utils/metrics.py` | AUROC/AUPRC/binary metric helpers | Established |
-| `rf_multiview_relation/scripts/00_audit_dataset.py` | Dataset audit | Implemented and run |
-| `rf_multiview_relation/scripts/01_verify_representations.py` | Canonical representation verification entrypoint | Added as spec-aligned wrapper |
-| `rf_multiview_relation/scripts/02_train_autoencoders.py` | Tx1-only AE pretraining | Implemented and smoke-tested |
-
-## Audit Findings
-
-Dataset audit results from Phase 0:
-
-| Dataset | Files | Sample length | Possible windows/file | Selected windows/file |
-| --- | ---: | ---: | ---: | ---: |
-| Tx1 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx2 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx3 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx4 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx5 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx6 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx7 | 500 | 2,000,000 | 1,952 | 256 |
-| Tx8 | 500 | 2,000,000 | 1,952 | 256 |
-| Oracle SigMF | 128 standard `.sigmf-data` | 20,006,400 | 19,536 | 256 |
-
-Tx1 split:
+Phase 0:
 
 ```text
-Tx1 fit/train:   320 files
-Tx1 calibration:  80 files
-Tx1 holdout:     100 files
+Tx1-Tx8: 500 files each
+Tx1 split: 320 train, 80 calibration, 100 holdout
+Oracle standard SigMF: 128 files
+file-level leakage check: passed
 ```
 
-Representation verification:
+Phase 1:
 
 ```text
 IQ:   [2, 2048]
 AP:   [2, 2048]
 STFT: [1, 128, 31]
+NaN/Inf: none in sampled examples
 ```
 
-AP uses `phase_unwrap: true` in the main config. The smoke check showed that unwrapped phase can have a much larger MSE scale than IQ/STFT, so `phase_unwrap: false` or AP channel scaling should be kept as an ablation candidate only after the main fixed-protocol run.
-
-## Current Gaps
-
-The following parts still need implementation before full paper-level evaluation:
-
-| Gap | Needed module/script |
-| --- | --- |
-| Full AE training run | `scripts/02_train_autoencoders.py` with all 320 Tx1 fit files |
-| Latent extraction | `scripts/03_extract_latents.py` |
-| CCA/CKA tables | `scripts/04_analyze_relations.py`, `relation/*` |
-| Single-view/concat/relation detector fitting | `scripts/05_fit_detectors.py`, `detectors/*` |
-| Minimal Tx1-vs-Tx2 feasibility | `scripts/06_evaluate.py` with mode or separate config |
-| Absolute + relation combined detector | `detectors/combined.py` plus evaluation integration |
-| Full Tx2-Tx8 and Oracle evaluation | `scripts/06_evaluate.py` |
-| Ablations | `scripts/07_ablation.py` |
-| Final orchestration | `scripts/08_run_all.py` |
-
-## Reuse Decision
-
-Main reuse is intentionally narrow:
-
-- Reuse old MAT/SigMF loading knowledge.
-- Reuse old model patterns only as references.
-- Do not reuse prior Tx1-Tx4 known-normal experiment as current evidence.
-- Do not tune any choice using Tx2-Tx8 or Oracle.
-
-The current main research question is:
+Phase 2 smoke:
 
 ```text
-Does explicit multi-view relation provide complementary anomaly information
-beyond learned absolute latent features in Tx1-only one-class RF anomaly detection?
+IQ/AP/STFT AE forward/backward/checkpoint save: passed
+```
+
+Phase 3-6 minimal smoke:
+
+```text
+Tx1 train/calibration/holdout + Tx2, 2 files per split
+latent extraction: passed
+CCA/CKA analysis: passed
+Tx1-only detector fitting: passed
+Tx1 calibration thresholding: passed
+file-level evaluation output: passed
+```
+
+## Current Risk Register
+
+| Risk | Mitigation |
+| --- | --- |
+| Full AE training may be IO-heavy | Start with Tx1-only full run, then decide whether local ignored caches are needed |
+| AP unwrapped phase scale is large | Keep main config fixed; compare raw phase/scaling only in ablation |
+| `scikit-learn` may be unavailable | `MahalanobisDetector` uses sklearn LedoitWolf when available and analytic Ledoit-Wolf otherwise |
+| Oracle format differs from MAT | Keep Oracle handling isolated in `data/sigmf.py` |
+
+## Next Active Step
+
+```text
+Run full Tx1-only autoencoder training,
+then extract full latents and execute the main evaluation.
 ```

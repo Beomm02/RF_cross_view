@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Iterator
 
 import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CODE_2ND = PROJECT_ROOT / "code" / "2nd"
-if str(CODE_2ND) not in sys.path:
-    sys.path.insert(0, str(CODE_2ND))
 
-from preprocessing import load_iq_from_mat, validate_iq  # noqa: E402
+from rf_multiview_relation.data.mat import load_iq_from_mat, validate_iq
 from rf_multiview_relation.data.representations import build_view  # noqa: E402
 from rf_multiview_relation.data.windowing import window_start_positions  # noqa: E402
 

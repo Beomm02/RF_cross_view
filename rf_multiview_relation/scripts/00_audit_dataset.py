@@ -11,13 +11,10 @@ import numpy as np
 from scipy.io import loadmat, whosmat
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CODE_2ND = PROJECT_ROOT / "code" / "2nd"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-if str(CODE_2ND) not in sys.path:
-    sys.path.insert(0, str(CODE_2ND))
 
-from preprocessing import load_iq_from_mat, normalize_iq, validate_iq  # noqa: E402
+from rf_multiview_relation.data.mat import load_iq_from_mat, normalize_iq, validate_iq  # noqa: E402
 from rf_multiview_relation.data.sigmf import (  # noqa: E402
     discover_nonstandard_sigmf_like_files,
     discover_sigmf_data_files,
