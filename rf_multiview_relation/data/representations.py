@@ -23,7 +23,27 @@ def build_iq_view(iq_window: np.ndarray) -> np.ndarray:
     return np.nan_to_num(view, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
 
-def build_ap_view(iq_window: np.ndarray, phase_unwrap: bool = True) -> np.ndarray:
+def transform_phase_channel(phase: np.ndarray, mode: str = "raw") -> np.ndarray:
+    mode = str(mode or "raw").lower()
+    values = np.asarray(phase, dtype=np.float32)
+    if mode in {"raw", "none"}:
+        return values
+    if mode in {"unit", "pi"}:
+        return values / np.float32(np.pi)
+    if mode == "center":
+        return values - np.float32(np.mean(values))
+    if mode == "center_unit":
+        return (values - np.float32(np.mean(values))) / np.float32(np.pi)
+    if mode == "zscore":
+        return (values - np.float32(np.mean(values))) / (np.float32(np.std(values)) + np.float32(EPS))
+    if mode == "diff":
+        return np.diff(values, prepend=values[0]).astype(np.float32)
+    if mode == "diff_unit":
+        return (np.diff(values, prepend=values[0]) / np.float32(np.pi)).astype(np.float32)
+    raise ValueError(f"Unsupported phase_transform: {mode}")
+
+
+def build_ap_view(iq_window: np.ndarray, phase_unwrap: bool = True, phase_transform: str = "raw") -> np.ndarray:
     window = np.asarray(iq_window, dtype=np.float32)
     if window.ndim != 2 or window.shape[1] != 2:
         raise ValueError("iq_window must have shape [N, 2]")
@@ -33,6 +53,7 @@ def build_ap_view(iq_window: np.ndarray, phase_unwrap: bool = True) -> np.ndarra
     phase = np.arctan2(q_data, i_data)
     if phase_unwrap:
         phase = np.unwrap(phase)
+    phase = transform_phase_channel(phase, phase_transform)
     view = np.stack([amplitude, phase], axis=0)
     return np.nan_to_num(view, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
@@ -78,7 +99,11 @@ def build_all_views(iq_window: np.ndarray, config: dict) -> dict[str, np.ndarray
     stft_cfg = config["representations"]["stft"]
     return {
         "iq": build_iq_view(normalized),
-        "ap": build_ap_view(normalized, phase_unwrap=bool(config["representations"]["phase_unwrap"])),
+        "ap": build_ap_view(
+            normalized,
+            phase_unwrap=bool(config["representations"]["phase_unwrap"]),
+            phase_transform=str(config["representations"].get("phase_transform", "raw")),
+        ),
         "stft": build_stft_view(
             normalized,
             n_fft=int(stft_cfg["n_fft"]),
@@ -95,7 +120,11 @@ def build_view(iq_window: np.ndarray, view_name: str, config: dict) -> np.ndarra
     if view_name == "iq":
         return build_iq_view(normalized)
     if view_name == "ap":
-        return build_ap_view(normalized, phase_unwrap=bool(config["representations"]["phase_unwrap"]))
+        return build_ap_view(
+            normalized,
+            phase_unwrap=bool(config["representations"]["phase_unwrap"]),
+            phase_transform=str(config["representations"].get("phase_transform", "raw")),
+        )
     if view_name == "stft":
         stft_cfg = config["representations"]["stft"]
         return build_stft_view(

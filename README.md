@@ -63,6 +63,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 3 Latent Extraction | 완료 | Tx1 split, Tx2-Tx8, Oracle paired latent 저장 |
 | Phase 4 Relation Analysis | 완료 | Tx1-only CCA fitting, CKA table 생성 |
 | Phase 4.5 Tx1-only Relation Screening | 완료 | Tx1 train/calibration만으로 AP-STFT relation 후보가 상위 선별됨 |
+| Phase 4.6 AP Phase Ablation Pilot | 완료 | phase scaling/difference는 AE 안정성을 개선했지만 closed anomaly 성능은 raw phase가 유지됨 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -147,6 +148,34 @@ Screened 후보 평가:
 
 `AP-STFT CCA Cosine`의 device-wise AUROC는 Tx2 0.7235, Tx3 0.7027, Tx4 0.8208, Tx5 0.7316, Tx6 0.7080, Tx7 0.8393, Tx8 0.8450이었다. 모든 Tx2-Tx8 비교에서 anomaly median score가 Tx1 holdout보다 높았고 Mann-Whitney U test도 유의했다.
 
+### AP Phase Ablation Pilot
+
+AP reconstruction loss가 raw unwrapped phase에서 과도하게 큰 문제를 확인하기 위해 phase preprocessing ablation을 수행했다. 이 실험은 빠른 방향성 확인용 pilot이며, AP encoder만 다시 학습하고 IQ/STFT encoder는 기존 seed 42 checkpoint를 재사용했다.
+
+Pilot 조건:
+
+- AP train 80 files, AP calibration 20 files
+- Latent/evaluation은 split별 최대 120 files
+- Epoch 8, batch size 256
+- Tx1-only CCA/threshold 원칙 유지
+
+실행 명령:
+
+```bash
+python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --variants phase_unwrap_raw_pilot phase_wrapped_unit phase_unwrap_zscore phase_unwrap_diff_unit
+```
+
+| Variant | Phase | AP cal loss | Tx1 AP-STFT CKA | Tx1 AP-STFT CCA | Closed AUROC | Closed F1 | Oracle AUROC | Oracle F1 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Raw pilot | unwrap raw | 111471.6709 | 0.1850 | 0.4525 | 0.7674 | 0.5624 | 1.0000 | 0.9756 |
+| Wrapped unit | wrapped / pi | 0.2631 | 0.5465 | 0.6695 | 0.5367 | 0.2154 | 1.0000 | 0.9796 |
+| Unwrap z-score | unwrap z-score | 0.1636 | 0.2935 | 0.6497 | 0.5582 | 0.2310 | 1.0000 | 0.9600 |
+| Unwrap diff unit | diff(unwrap) / pi | 0.2295 | 0.5426 | 0.7640 | 0.5336 | 0.2363 | 1.0000 | 0.9562 |
+
+해석은 보수적으로 가져간다. Phase 정규화/차분은 AP autoencoder 학습 안정성과 AP-STFT relation 지표를 크게 개선했다. 하지만 Tx2-Tx8 closed anomaly detection에서는 raw unwrapped phase의 AP-STFT CCA cosine score가 가장 강했다. 이는 raw phase의 큰 drift 또는 slope 성분이 단순한 reconstruction noise가 아니라 송신 장치 차이를 담는 discriminative signal일 가능성을 시사한다.
+
+따라서 다음 방향은 phase를 무작정 z-score/diff로 정리하는 것이 아니라, raw phase를 유지하되 CFO-like slope/phase residual을 별도 representation으로 분리해 비교하는 것이다.
+
 ### Closed Dataset Test
 
 Normal은 Tx1 holdout 100 files, anomaly는 Tx2-Tx8 3500 files combined.
@@ -218,6 +247,7 @@ python rf_multiview_relation/scripts/04_analyze_relations.py --config rf_multivi
 python rf_multiview_relation/scripts/07_screen_relations.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/05_fit_relation_model.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relation/configs/default.yaml
+python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto
 ```
 
 최종 목표:
@@ -246,6 +276,7 @@ outputs/tables/cka_results.csv
 outputs/tables/tx1_relation_screening.csv
 outputs/tables/tx1_screened_relation_results.csv
 outputs/tables/tx1_screened_relation_device_results.csv
+outputs/tables/phase_ablation_summary.csv
 outputs/tables/main_results.csv
 outputs/tables/device_results.csv
 outputs/scores/file_scores.csv

@@ -24,6 +24,7 @@ representations:
   ap: true
   stft: true
   phase_unwrap: true
+  phase_transform: raw
   stft:
     n_fft: 128
     win_length: 128
