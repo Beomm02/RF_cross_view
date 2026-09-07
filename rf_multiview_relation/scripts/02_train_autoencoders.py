@@ -59,6 +59,12 @@ def stft_shape(config: dict) -> tuple[int, int]:
     return freq_bins, frames
 
 
+def encoder_config(config: dict) -> dict[str, Any]:
+    if "encoder" in config:
+        return config["encoder"]
+    return config["model"]
+
+
 def output_subdir(base: Path, run_name: str) -> Path:
     if not run_name:
         return base
@@ -110,14 +116,15 @@ def train_one_view(
     max_train_files: int | None,
     max_calibration_files: int | None,
 ) -> list[dict[str, Any]]:
-    latent_dim = int(config["model"]["latent_dim"])
+    enc_cfg = encoder_config(config)
+    latent_dim = int(enc_cfg["latent_dim"])
     model = make_autoencoder(view_name, latent_dim=latent_dim, stft_shape=stft_shape(config)).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(),
-        lr=float(config["model"]["learning_rate"]),
-        weight_decay=float(config["model"]["weight_decay"]),
+        lr=float(enc_cfg["learning_rate"]),
+        weight_decay=float(enc_cfg["weight_decay"]),
     )
-    early_stopping = int(config["model"].get("early_stopping", 5))
+    early_stopping = int(enc_cfg.get("early_stopping", 5))
     best_loss = float("inf")
     stale_epochs = 0
     rows = []
@@ -224,8 +231,9 @@ def main() -> None:
     train_files = read_manifest(train_manifest, data_root)
     calibration_files = read_manifest(calibration_manifest, data_root)
 
-    epochs = int(args.epochs or config["model"]["epochs"])
-    batch_size = int(args.batch_size or config["model"]["batch_size"])
+    enc_cfg = encoder_config(config)
+    epochs = int(args.epochs or enc_cfg["epochs"])
+    batch_size = int(args.batch_size or enc_cfg["batch_size"])
     device = choose_device(args.device)
     print(
         f"[AE] device={device} views={','.join(args.views)} epochs={epochs} batch_size={batch_size} "

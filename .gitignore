@@ -26,6 +26,7 @@ __pycache__/
 *.log
 *.out
 *.err
+EXPERIMENT_LOG.md
 logs/
 **/logs/
 run_stdout.*

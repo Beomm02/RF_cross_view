@@ -12,7 +12,7 @@ python rf_multiview_relation/scripts/00_audit_dataset.py --config rf_multiview_r
 Representation sanity extraction:
 
 ```bash
-python rf_multiview_relation/scripts/01_extract_views.py --config rf_multiview_relation/configs/default.yaml
+python rf_multiview_relation/scripts/01_verify_representations.py --config rf_multiview_relation/configs/default.yaml
 ```
 
 Tx1-only autoencoder pretraining:
@@ -38,4 +38,16 @@ Validated smoke command:
 
 ```bash
 python rf_multiview_relation/scripts/02_train_autoencoders.py --config rf_multiview_relation/configs/default.yaml --views iq ap stft --epochs 1 --batch-size 64 --max-train-files 1 --max-calibration-files 1 --run-name smoke
+```
+
+Canonical final target from inside this directory:
+
+```bash
+python scripts/08_run_all.py --config configs/default.yaml
+```
+
+The central experimental comparison is:
+
+```text
+Concat vs CCA Relation vs Concat + Relation
 ```

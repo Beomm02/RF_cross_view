@@ -2,13 +2,13 @@
 
 ## 현재 연구 기준
 
-2026-09-04부터 본 저장소의 메인 연구 기준은 다음 주제로 전환한다.
+2026-09-07 기준 본 저장소의 메인 연구 기준은 다음 주제로 정립한다.
 
 ```text
 Multi-View Representation 관계를 활용한 RF 송신 장치 이상 탐지
 ```
 
-핵심 질문은 Tx1 정상 데이터에서 IQ/AP/STFT representation 사이의 관계 구조가 안정적으로 존재하는지, 그리고 Tx2-Tx8 및 Oracle SigMF가 그 Tx1 relation distribution에서 벗어나는지를 확인하는 것이다.
+핵심 질문은 Tx1 정상 데이터에서 IQ/AP/STFT representation 사이의 관계 구조가 안정적으로 존재하는지, Tx2-Tx8 및 Oracle SigMF가 그 Tx1 relation distribution에서 벗어나는지, 그리고 relation이 absolute latent feature에 없는 complementary anomaly information을 주는지 확인하는 것이다.
 
 메인 구현 위치:
 
@@ -20,6 +20,7 @@ rf_multiview_relation/
 
 - `CURRENT_CODE_AUDIT.md`
 - `IMPLEMENTATION_PLAN.md`
+- `EXPERIMENT_LOG.md`
 
 Phase 0 데이터 감사 실행:
 
@@ -30,7 +31,7 @@ python rf_multiview_relation/scripts/00_audit_dataset.py --config rf_multiview_r
 Phase 1 representation 확인 실행:
 
 ```bash
-python rf_multiview_relation/scripts/01_extract_views.py --config rf_multiview_relation/configs/default.yaml
+python rf_multiview_relation/scripts/01_verify_representations.py --config rf_multiview_relation/configs/default.yaml
 ```
 
 Phase 2 autoencoder pretraining 실행:
@@ -56,6 +57,7 @@ outputs/splits/tx1_holdout_100_seed42.txt
 
 | Phase | 상태 | 핵심 확인 |
 | --- | --- | --- |
+| Protocol Re-establishment | 완료 | `Concat`, `CCA Relation`, `Concat + Relation` 중심으로 재정립 |
 | Phase 0 Dataset Audit | 완료 | Tx1-Tx8 각 500 files, Tx1 train/calibration/holdout 320/80/100 split, Oracle 표준 SigMF 128 files |
 | Phase 1 Representation Check | 완료 | IQ `2x2048`, AP `2x2048`, STFT `1x128x31`, sample NaN/Inf 없음 |
 | Phase 2 Autoencoder | 구현 및 smoke 완료 | IQ/AP/STFT AE forward/backward/checkpoint 저장 확인, full 30 epoch 학습은 다음 단계 |
@@ -83,10 +85,11 @@ Smoke 결과에서 AP reconstruction loss가 IQ/STFT보다 매우 크게 나타�
 
 이 저장소는 RF IQ 원본 신호에서 여러 representation을 만들고, 정상 RF와 unseen/anomaly RF 사이에서 representation 간 관계성이 달라지는지 확인하기 위한 실험 기록이다.
 
-현재 핵심 질문은 다음 두 가지다.
+현재 핵심 질문은 다음 세 가지다.
 
 1. 정상 RF, 즉 Tx1에서 서로 다른 representation 사이에 일정한 관계가 존재하는가?
 2. Tx2-Tx8 또는 Oracle external RF가 들어오면 Tx1 relation distribution과의 차이로 구분할 수 있는가?
+3. Relation score가 absolute latent score와 다른 complementary information을 제공하는가?
 
 ## 평가 원칙
 
@@ -127,12 +130,13 @@ RFF_Tx_ANTSDR_1_Boot_01_20265608_020422_iter386.mat
 
 ## GitHub 관리 정책
 
-GitHub에는 다음만 올린다.
+GitHub에는 다음을 기본으로 올린다.
 
 - README
+- 연구 audit/plan/log 문서
 - 실험 스크립트
-- split manifest
-- 작은 CSV 결과표
+
+작은 CSV 결과표나 split manifest는 논문 표 재현에 필요할 때만 명시적으로 올린다. 기본 실험 산출물은 `outputs/`에 두고 올리지 않는다.
 
 GitHub에는 다음을 올리지 않는다.
 
@@ -154,7 +158,7 @@ C:\Users\Beomm\Desktop\project\모델 관련 자료\project
 실험 코드:
 
 ```text
-code\2nd\cross_view_relation
+rf_multiview_relation
 ```
 
 사용 Python:
@@ -165,7 +169,11 @@ code\2nd\.venv\Scripts\python.exe
 
 ## 현재 실험
 
-현재 메인 실험은 `rf_multiview_relation/`에서 새로 진행한다. 아래 내용은 2026-09-04 이전에 수행한 Tx1-Tx4 known-normal open-set relation 실험 기록이다.
+현재 메인 실험은 `rf_multiview_relation/`에서 새로 진행한다.
+
+## Legacy Experiment Record
+
+아래 내용은 2026-09-04 이전에 수행한 Tx1-Tx4 known-normal open-set relation 실험 기록이다.
 
 이번 실험은 Tx1-Tx4를 known-normal로 두고, Tx5-Tx8을 학습에서 보지 않은 unseen/anomaly 송신기로 두는 open-set relation 실험이다.
 

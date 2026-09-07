@@ -1,0 +1,12 @@
+cca:
+  components_list: [8, 16, 32]
+
+relation:
+  modes: [signed_residual, absolute_residual, cosine, euclidean]
+  pair_sets: [iq_ap, iq_stft, ap_stft, all]
+
+representations:
+  phase_unwrap_options: [true, false]
+
+file_scoring:
+  percentiles: [mean, p50, p60, p75, p90, p95, max]

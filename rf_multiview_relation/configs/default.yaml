@@ -31,22 +31,49 @@ representations:
     window: hann
     log_magnitude: true
 
-model:
+encoder:
   latent_dim: 64
   epochs: 30
   batch_size: 128
   learning_rate: 0.001
   weight_decay: 0.00001
+  optimizer: Adam
   early_stopping: 5
 
 cca:
-  n_components: 16
-  scale: true
+  components: 16
+  standardize: true
+  regularization: 0.000001
 
 relation:
   mode: signed_residual
-  covariance: ledoit_wolf
+  supported_modes: [signed_residual, absolute_residual, cosine, euclidean]
+  pairs: [iq_ap, iq_stft, ap_stft]
 
-scoring:
-  file_percentile: 60
-  threshold_percentile: 95
+detector:
+  covariance: ledoit_wolf
+  mahalanobis_eps: 0.000001
+
+score_fusion:
+  enabled: true
+  alpha: 0.5
+  robust_reference: calibration
+
+file_scoring:
+  percentile: 60
+  ablation: [mean, p50, p60, p75, p90, p95, max]
+
+threshold:
+  percentile: 95
+  source: tx1_calibration
+
+experiment:
+  main_seed: 42
+  report_seeds: [42, 123, 2026]
+  priority1_methods: [iq, concat, cca_relation, absolute_plus_relation]
+  priority2_methods: [ap, stft, raw_relation]
+  priority3_ablations: [cca_dimension, pair_selection, relation_mode]
+  minimal_feasibility:
+    normal: Tx1_holdout
+    anomaly: Tx2
+    methods: [iq, concat, cca_relation, absolute_plus_relation]
