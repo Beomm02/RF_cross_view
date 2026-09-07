@@ -22,6 +22,7 @@ from rf_multiview_relation.pipeline import (  # noqa: E402
 from rf_multiview_relation.relation.cka import linear_cka  # noqa: E402
 from rf_multiview_relation.utils.config import load_config  # noqa: E402
 from rf_multiview_relation.utils.io import write_csv  # noqa: E402
+from rf_multiview_relation.utils.plotting import save_heatmap_matrix  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -88,6 +89,17 @@ def save_relation_heatmap(rows: list[dict[str, Any]], path: Path, value_key: str
     try:
         import matplotlib.pyplot as plt
     except ModuleNotFoundError:
+        matrix = np.eye(3, dtype=np.float64)
+        pair_to_idx = {"iq_ap": (0, 1), "iq_stft": (0, 2), "ap_stft": (1, 2)}
+        for row in rows:
+            pair = str(row["pair"])
+            if pair not in pair_to_idx:
+                continue
+            left, right = pair_to_idx[pair]
+            value = float(row[value_key])
+            matrix[left, right] = value
+            matrix[right, left] = value
+        save_heatmap_matrix(matrix, path)
         return
     views = ["iq", "ap", "stft"]
     labels = ["IQ", "AP", "STFT"]

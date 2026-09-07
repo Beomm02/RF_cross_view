@@ -22,6 +22,7 @@ from rf_multiview_relation.pipeline import (  # noqa: E402
 from rf_multiview_relation.utils.config import load_config  # noqa: E402
 from rf_multiview_relation.utils.io import write_csv  # noqa: E402
 from rf_multiview_relation.utils.metrics import binary_metrics  # noqa: E402
+from rf_multiview_relation.utils.plotting import save_boxplot_groups, save_roc_curves, save_scatter_plot  # noqa: E402
 
 
 DEFAULT_EVAL_SPLITS = ("tx1_holdout", "tx2", "tx3", "tx4", "tx5", "tx6", "tx7", "tx8", "oracle")
@@ -313,6 +314,7 @@ def save_figures(file_rows: list[dict[str, Any]], methods: list[str], figures_di
     try:
         import matplotlib.pyplot as plt
     except ModuleNotFoundError:
+        save_figures_fallback(file_rows, methods, figures_dir)
         return
     figures_dir.mkdir(parents=True, exist_ok=True)
 
@@ -394,6 +396,58 @@ def save_figures(file_rows: list[dict[str, Any]], methods: list[str], figures_di
         fig.tight_layout()
         fig.savefig(figures_dir / "absolute_vs_relation_score.png")
         plt.close(fig)
+
+
+def save_figures_fallback(file_rows: list[dict[str, Any]], methods: list[str], figures_dir: Path) -> None:
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    relation_rows = [row for row in file_rows if row["method"] == "cca_relation"]
+    splits = ["tx1_holdout"] + [f"tx{idx}" for idx in range(2, 9)]
+    box_data = [
+        np.asarray([float(row["file_score"]) for row in relation_rows if row["split"] == split], dtype=np.float64)
+        for split in splits
+    ]
+    if any(values.size for values in box_data):
+        save_boxplot_groups(box_data, figures_dir / "score_distribution.png")
+
+    closed_splits = {"tx1_holdout"} | {f"tx{idx}" for idx in range(2, 9)}
+    curves = []
+    for method in methods:
+        rows = subset_rows(file_rows, method, closed_splits)
+        if not rows:
+            continue
+        labels_arr = np.asarray([int(row["label"]) for row in rows], dtype=np.int64)
+        if np.unique(labels_arr).size < 2:
+            continue
+        scores = np.asarray([float(row["file_score"]) for row in rows], dtype=np.float64)
+        curves.append(roc_points(labels_arr, scores))
+    if curves:
+        save_roc_curves(curves, figures_dir / "roc_curve.png")
+
+    oracle_data = [
+        np.asarray([float(row["file_score"]) for row in relation_rows if row["split"] == "tx1_holdout"], dtype=np.float64),
+        np.asarray([float(row["file_score"]) for row in relation_rows if row["split"] == "oracle"], dtype=np.float64),
+    ]
+    if all(values.size for values in oracle_data):
+        save_boxplot_groups(oracle_data, figures_dir / "oracle_distribution.png")
+
+    concat_map = {
+        row["file_id"]: (float(row["file_score"]), int(row["label"]))
+        for row in file_rows
+        if row["method"] == "concat" and row["split"] in closed_splits
+    }
+    relation_map = {
+        row["file_id"]: float(row["file_score"])
+        for row in file_rows
+        if row["method"] == "cca_relation" and row["split"] in closed_splits
+    }
+    common = sorted(set(concat_map) & set(relation_map))
+    if common:
+        save_scatter_plot(
+            np.asarray([concat_map[key][0] for key in common], dtype=np.float64),
+            np.asarray([relation_map[key] for key in common], dtype=np.float64),
+            np.asarray([concat_map[key][1] for key in common], dtype=np.int64),
+            figures_dir / "absolute_vs_relation_score.png",
+        )
 
 
 def main() -> None:

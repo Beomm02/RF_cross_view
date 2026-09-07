@@ -13,6 +13,18 @@ RGB_BLUE = np.array([34, 97, 214], dtype=np.uint8)
 RGB_RED = np.array([217, 74, 74], dtype=np.uint8)
 RGB_GREEN = np.array([45, 160, 100], dtype=np.uint8)
 RGB_ORANGE = np.array([228, 133, 45], dtype=np.uint8)
+RGB_PURPLE = np.array([130, 90, 190], dtype=np.uint8)
+RGB_BLACK = np.array([35, 37, 42], dtype=np.uint8)
+
+PALETTE = (
+    RGB_BLUE,
+    RGB_RED,
+    RGB_GREEN,
+    RGB_ORANGE,
+    RGB_PURPLE,
+    np.array([42, 150, 190], dtype=np.uint8),
+    np.array([180, 80, 120], dtype=np.uint8),
+)
 
 
 def save_iq_examples(examples: list[np.ndarray], path: str | Path) -> None:
@@ -72,6 +84,92 @@ def save_loss_curves(rows: list[dict], path: str | Path) -> None:
         val_y = _values_to_y(val, values, y_top + 4, y_bottom - 4).astype(np.int32)
         _draw_polyline_or_point(image, x_values, train_y, RGB_BLUE)
         _draw_polyline_or_point(image, x_values, val_y, RGB_RED)
+    write_png(path, image)
+
+
+def save_heatmap_matrix(matrix: np.ndarray, path: str | Path, cell_size: int = 96) -> None:
+    values = np.asarray(matrix, dtype=np.float64)
+    low = float(np.nanmin(values))
+    high = float(np.nanmax(values))
+    if high <= low:
+        high = low + 1.0
+    normalized = np.clip((values - low) / (high - low), 0.0, 1.0)
+    tile = _colormap(normalized)
+    image = np.repeat(np.repeat(tile, int(cell_size), axis=0), int(cell_size), axis=1).astype(np.uint8)
+    _draw_rect(image, 0, 0, image.shape[1] - 1, image.shape[0] - 1, RGB_BLACK)
+    for idx in range(1, values.shape[0]):
+        y = idx * int(cell_size)
+        _draw_horizontal(image, y, 0, image.shape[1] - 1, RGB_WHITE)
+        _draw_vertical(image, idx * int(cell_size), 0, image.shape[0] - 1, RGB_WHITE)
+    write_png(path, image)
+
+
+def save_boxplot_groups(groups: list[np.ndarray], path: str | Path) -> None:
+    width = max(640, 95 * max(len(groups), 1) + 120)
+    height = 480
+    image = np.empty((height, width, 3), dtype=np.uint8)
+    image[:] = RGB_WHITE
+    left, right, top, bottom = 56, width - 28, 28, height - 48
+    _draw_rect(image, left, top, right, bottom, RGB_GRAY)
+    all_values = np.concatenate([np.asarray(group, dtype=np.float64) for group in groups if len(group)])
+    y_values = _values_to_y(all_values, all_values, top + 10, bottom - 10)
+    low, high = _inverse_y_limits(all_values)
+    if high <= low:
+        high = low + 1.0
+
+    for idx, group in enumerate(groups):
+        values = np.asarray(group, dtype=np.float64)
+        if values.size == 0:
+            continue
+        x = int(left + (idx + 0.5) * (right - left) / max(len(groups), 1))
+        q1, med, q3 = np.percentile(values, [25, 50, 75])
+        iqr = q3 - q1
+        whisker_low = np.min(values[values >= q1 - 1.5 * iqr]) if values.size else q1
+        whisker_high = np.max(values[values <= q3 + 1.5 * iqr]) if values.size else q3
+        y_q1 = int(_value_to_y(q1, low, high, top + 10, bottom - 10))
+        y_med = int(_value_to_y(med, low, high, top + 10, bottom - 10))
+        y_q3 = int(_value_to_y(q3, low, high, top + 10, bottom - 10))
+        y_low = int(_value_to_y(whisker_low, low, high, top + 10, bottom - 10))
+        y_high = int(_value_to_y(whisker_high, low, high, top + 10, bottom - 10))
+        box_w = max(18, int((right - left) / max(len(groups), 1) * 0.45))
+        color = PALETTE[idx % len(PALETTE)]
+        _draw_line(image, x, y_low, x, y_high, color)
+        _draw_horizontal(image, y_low, x - box_w // 3, x + box_w // 3, color)
+        _draw_horizontal(image, y_high, x - box_w // 3, x + box_w // 3, color)
+        _draw_rect(image, x - box_w // 2, min(y_q1, y_q3), x + box_w // 2, max(y_q1, y_q3), color)
+        _draw_horizontal(image, y_med, x - box_w // 2, x + box_w // 2, RGB_BLACK)
+    _ = y_values
+    write_png(path, image)
+
+
+def save_roc_curves(curves: list[tuple[np.ndarray, np.ndarray]], path: str | Path) -> None:
+    width, height = 640, 520
+    image = np.empty((height, width, 3), dtype=np.uint8)
+    image[:] = RGB_WHITE
+    left, right, top, bottom = 64, width - 32, 32, height - 56
+    _draw_rect(image, left, top, right, bottom, RGB_GRAY)
+    _draw_line(image, left, bottom, right, top, RGB_GRAY)
+    for idx, (fpr, tpr) in enumerate(curves):
+        x_values = left + np.clip(np.asarray(fpr, dtype=np.float64), 0.0, 1.0) * (right - left)
+        y_values = bottom - np.clip(np.asarray(tpr, dtype=np.float64), 0.0, 1.0) * (bottom - top)
+        _draw_polyline_or_point(image, x_values.astype(np.int32), y_values.astype(np.int32), PALETTE[idx % len(PALETTE)])
+    write_png(path, image)
+
+
+def save_scatter_plot(x: np.ndarray, y: np.ndarray, labels: np.ndarray, path: str | Path) -> None:
+    width, height = 620, 520
+    image = np.empty((height, width, 3), dtype=np.uint8)
+    image[:] = RGB_WHITE
+    left, right, top, bottom = 64, width - 32, 32, height - 56
+    _draw_rect(image, left, top, right, bottom, RGB_GRAY)
+    x_low, x_high = _inverse_y_limits(np.asarray(x, dtype=np.float64))
+    y_low, y_high = _inverse_y_limits(np.asarray(y, dtype=np.float64))
+    labels = np.asarray(labels, dtype=np.int64)
+    for x_value, y_value, label in zip(x, y, labels):
+        px = int(left + np.clip((float(x_value) - x_low) / (x_high - x_low), 0.0, 1.0) * (right - left))
+        py = int(bottom - np.clip((float(y_value) - y_low) / (y_high - y_low), 0.0, 1.0) * (bottom - top))
+        color = RGB_RED if int(label) == 1 else RGB_BLUE
+        image[max(0, py - 2) : min(height, py + 3), max(0, px - 2) : min(width, px + 3)] = color
     write_png(path, image)
 
 
@@ -146,9 +244,29 @@ def _values_to_y(values: np.ndarray, reference: np.ndarray, top: int, bottom: in
     return bottom - np.clip(normalized, 0.0, 1.0) * (bottom - top)
 
 
+def _inverse_y_limits(values: np.ndarray) -> tuple[float, float]:
+    data = np.asarray(values, dtype=np.float64)
+    data = np.nan_to_num(data, nan=0.0, posinf=0.0, neginf=0.0)
+    low = float(np.quantile(data, 0.01))
+    high = float(np.quantile(data, 0.99))
+    if high <= low:
+        high = low + 1.0
+    return low, high
+
+
+def _value_to_y(value: float, low: float, high: float, top: int, bottom: int) -> float:
+    normalized = (float(value) - float(low)) / (float(high) - float(low))
+    return bottom - np.clip(normalized, 0.0, 1.0) * (bottom - top)
+
+
 def _draw_horizontal(image: np.ndarray, y: int, x0: int, x1: int, color: np.ndarray) -> None:
     if 0 <= y < image.shape[0]:
         image[y, max(0, x0) : min(image.shape[1], x1 + 1)] = color
+
+
+def _draw_vertical(image: np.ndarray, x: int, y0: int, y1: int, color: np.ndarray) -> None:
+    if 0 <= x < image.shape[1]:
+        image[max(0, y0) : min(image.shape[0], y1 + 1), x] = color
 
 
 def _draw_rect(image: np.ndarray, x0: int, y0: int, x1: int, y1: int, color: np.ndarray) -> None:
