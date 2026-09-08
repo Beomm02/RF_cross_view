@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from rf_multiview_relation.data.dataset import iter_view_batches, read_manifest, split_manifest_path  # noqa: E402
 from rf_multiview_relation.models.autoencoder import make_autoencoder  # noqa: E402
+from rf_multiview_relation.pipeline import ap_input_channels  # noqa: E402
 from rf_multiview_relation.utils.config import load_config  # noqa: E402
 from rf_multiview_relation.utils.io import write_csv  # noqa: E402
 from rf_multiview_relation.utils.plotting import save_loss_curves  # noqa: E402
@@ -118,7 +119,12 @@ def train_one_view(
 ) -> list[dict[str, Any]]:
     enc_cfg = encoder_config(config)
     latent_dim = int(enc_cfg["latent_dim"])
-    model = make_autoencoder(view_name, latent_dim=latent_dim, stft_shape=stft_shape(config)).to(device)
+    model = make_autoencoder(
+        view_name,
+        latent_dim=latent_dim,
+        stft_shape=stft_shape(config),
+        ap_channels=ap_input_channels(config),
+    ).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=float(enc_cfg["learning_rate"]),

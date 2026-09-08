@@ -78,7 +78,12 @@ def slope_channel(phase: np.ndarray, unit: bool = True) -> np.ndarray:
     return np.full_like(np.asarray(phase, dtype=np.float32), value, dtype=np.float32)
 
 
-def build_ap_view(iq_window: np.ndarray, phase_unwrap: bool = True, phase_transform: str = "raw") -> np.ndarray:
+def build_ap_view(
+    iq_window: np.ndarray,
+    phase_unwrap: bool = True,
+    phase_transform: str = "raw",
+    phase_channels: list[str] | tuple[str, ...] | None = None,
+) -> np.ndarray:
     window = np.asarray(iq_window, dtype=np.float32)
     if window.ndim != 2 or window.shape[1] != 2:
         raise ValueError("iq_window must have shape [N, 2]")
@@ -88,8 +93,9 @@ def build_ap_view(iq_window: np.ndarray, phase_unwrap: bool = True, phase_transf
     phase = np.arctan2(q_data, i_data)
     if phase_unwrap:
         phase = np.unwrap(phase)
-    phase = transform_phase_channel(phase, phase_transform)
-    view = np.stack([amplitude, phase], axis=0)
+    channels = list(phase_channels) if phase_channels is not None else [phase_transform]
+    phase_views = [transform_phase_channel(phase, str(channel)) for channel in channels]
+    view = np.stack([amplitude, *phase_views], axis=0)
     return np.nan_to_num(view, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
 
@@ -131,13 +137,15 @@ def build_stft_view(
 
 def build_all_views(iq_window: np.ndarray, config: dict) -> dict[str, np.ndarray]:
     normalized = energy_normalize_iq_window(iq_window)
-    stft_cfg = config["representations"]["stft"]
+    repr_cfg = config["representations"]
+    stft_cfg = repr_cfg["stft"]
     return {
         "iq": build_iq_view(normalized),
         "ap": build_ap_view(
             normalized,
-            phase_unwrap=bool(config["representations"]["phase_unwrap"]),
-            phase_transform=str(config["representations"].get("phase_transform", "raw")),
+            phase_unwrap=bool(repr_cfg["phase_unwrap"]),
+            phase_transform=str(repr_cfg.get("phase_transform", "raw")),
+            phase_channels=repr_cfg.get("phase_channels"),
         ),
         "stft": build_stft_view(
             normalized,
@@ -152,13 +160,15 @@ def build_all_views(iq_window: np.ndarray, config: dict) -> dict[str, np.ndarray
 
 def build_view(iq_window: np.ndarray, view_name: str, config: dict) -> np.ndarray:
     normalized = energy_normalize_iq_window(iq_window)
+    repr_cfg = config["representations"]
     if view_name == "iq":
         return build_iq_view(normalized)
     if view_name == "ap":
         return build_ap_view(
             normalized,
-            phase_unwrap=bool(config["representations"]["phase_unwrap"]),
-            phase_transform=str(config["representations"].get("phase_transform", "raw")),
+            phase_unwrap=bool(repr_cfg["phase_unwrap"]),
+            phase_transform=str(repr_cfg.get("phase_transform", "raw")),
+            phase_channels=repr_cfg.get("phase_channels"),
         )
     if view_name == "stft":
         stft_cfg = config["representations"]["stft"]

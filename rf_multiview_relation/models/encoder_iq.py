@@ -5,10 +5,10 @@ from torch import nn
 
 
 class IQEncoder(nn.Module):
-    def __init__(self, latent_dim: int = 64):
+    def __init__(self, latent_dim: int = 64, in_channels: int = 2):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv1d(2, 32, kernel_size=7, stride=2),
+            nn.Conv1d(int(in_channels), 32, kernel_size=7, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(inplace=True),
             nn.Conv1d(32, 64, kernel_size=5, stride=2),

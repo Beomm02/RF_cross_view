@@ -21,6 +21,21 @@ SCRIPT_ROOT = PROJECT_ROOT / "rf_multiview_relation" / "scripts"
 PHASE_VARIANTS: dict[str, dict[str, Any]] = {
     "phase_unwrap_raw": {"phase_unwrap": True, "phase_transform": "raw"},
     "phase_unwrap_raw_pilot": {"phase_unwrap": True, "phase_transform": "raw"},
+    "phase_ap_raw_slope_residual": {
+        "phase_unwrap": True,
+        "phase_transform": "raw",
+        "phase_channels": ["raw", "slope_unit", "detrend_unit"],
+    },
+    "phase_ap_unit_slope_residual": {
+        "phase_unwrap": True,
+        "phase_transform": "unit",
+        "phase_channels": ["unit", "slope_unit", "detrend_unit"],
+    },
+    "phase_ap_center_slope_residual": {
+        "phase_unwrap": True,
+        "phase_transform": "center_unit",
+        "phase_channels": ["center_unit", "slope_unit", "detrend_unit"],
+    },
     "phase_unwrap_center_unit": {"phase_unwrap": True, "phase_transform": "center_unit"},
     "phase_unwrap_detrend_unit": {"phase_unwrap": True, "phase_transform": "detrend_unit"},
     "phase_unwrap_trend_unit": {"phase_unwrap": True, "phase_transform": "trend_unit"},
@@ -31,6 +46,9 @@ PHASE_VARIANTS: dict[str, dict[str, Any]] = {
 }
 DEFAULT_VARIANTS = [
     "phase_unwrap_raw",
+    "phase_ap_raw_slope_residual",
+    "phase_ap_unit_slope_residual",
+    "phase_ap_center_slope_residual",
     "phase_unwrap_center_unit",
     "phase_unwrap_detrend_unit",
     "phase_unwrap_trend_unit",
@@ -207,6 +225,8 @@ def collect_summary(output_dir: Path, variant_names: list[str]) -> list[dict[str
                 "variant": "phase_unwrap_raw_baseline",
                 "phase_unwrap": True,
                 "phase_transform": "raw",
+                "phase_channels": "raw",
+                "ap_channels": 2,
                 "ap_best_calibration_loss": min_ap_loss(base_tables),
                 "tx1_ap_stft_cka": ap_stft_cka(base_tables),
                 "tx1_ap_stft_cca_mean_corr": ap_stft_cca(base_tables),
@@ -227,6 +247,8 @@ def collect_summary(output_dir: Path, variant_names: list[str]) -> list[dict[str
                 "variant": variant_name,
                 "phase_unwrap": variant["phase_unwrap"],
                 "phase_transform": variant["phase_transform"],
+                "phase_channels": ";".join(str(item) for item in variant.get("phase_channels", [variant["phase_transform"]])),
+                "ap_channels": 1 + len(variant.get("phase_channels", [variant["phase_transform"]])),
                 "ap_best_calibration_loss": min_ap_loss(tables_dir),
                 "tx1_ap_stft_cka": ap_stft_cka(tables_dir),
                 "tx1_ap_stft_cca_mean_corr": ap_stft_cca(tables_dir),

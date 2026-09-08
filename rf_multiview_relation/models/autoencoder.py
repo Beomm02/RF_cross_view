@@ -21,11 +21,19 @@ class ViewAutoencoder(nn.Module):
         return reconstruction, z
 
 
-def make_autoencoder(view_name: str, latent_dim: int, stft_shape: tuple[int, int]) -> ViewAutoencoder:
+def make_autoencoder(
+    view_name: str,
+    latent_dim: int,
+    stft_shape: tuple[int, int],
+    ap_channels: int = 2,
+) -> ViewAutoencoder:
     if view_name == "iq":
         return ViewAutoencoder(IQEncoder(latent_dim=latent_dim), Conv1DDecoder(latent_dim, out_channels=2))
     if view_name == "ap":
-        return ViewAutoencoder(APEncoder(latent_dim=latent_dim), Conv1DDecoder(latent_dim, out_channels=2))
+        return ViewAutoencoder(
+            APEncoder(latent_dim=latent_dim, in_channels=int(ap_channels)),
+            Conv1DDecoder(latent_dim, out_channels=int(ap_channels)),
+        )
     if view_name == "stft":
         return ViewAutoencoder(STFTEncoder(latent_dim=latent_dim), STFTDecoder(latent_dim, target_shape=stft_shape))
     raise ValueError("view_name must be 'iq', 'ap', or 'stft'")

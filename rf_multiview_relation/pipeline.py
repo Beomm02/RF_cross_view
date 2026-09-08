@@ -63,6 +63,14 @@ def stft_shape(config: dict[str, Any]) -> tuple[int, int]:
     return freq_bins, frames
 
 
+def ap_input_channels(config: dict[str, Any]) -> int:
+    repr_cfg = config.get("representations", {})
+    channels = repr_cfg.get("phase_channels")
+    if channels is None:
+        return 2
+    return 1 + len(list(channels))
+
+
 def choose_device(name: str) -> torch.device:
     if name == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -83,7 +91,12 @@ def load_encoders(
         path = checkpoint_root / f"encoder_{view}.pt"
         if not path.exists():
             raise FileNotFoundError(f"Missing encoder checkpoint: {path}")
-        autoencoder = make_autoencoder(view, latent_dim=latent_dim, stft_shape=stft_shape(config)).to(device)
+        autoencoder = make_autoencoder(
+            view,
+            latent_dim=latent_dim,
+            stft_shape=stft_shape(config),
+            ap_channels=ap_input_channels(config),
+        ).to(device)
         try:
             checkpoint = torch.load(path, map_location=device, weights_only=False)
         except TypeError:

@@ -65,6 +65,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 4.5 Tx1-only Relation Screening | 완료 | Tx1 train/calibration만으로 AP-STFT relation 후보가 상위 선별됨 |
 | Phase 4.6 AP Phase Ablation Pilot | 완료 | phase scaling/difference는 AE 안정성을 개선했지만 closed anomaly 성능은 raw phase가 유지됨 |
 | Phase 4.7 Phase Slope Decomposition Pilot | 완료 | slope-only는 성능 일부를 회복하고 detrend residual은 크게 약화됨 |
+| Phase 4.8 AP+ Channel Decomposition Pilot | 완료 | raw/normalized phase, slope, residual을 4채널 AP로 분리했으나 raw 단일 AP 대비 closed 성능 개선은 없음 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -179,7 +180,26 @@ python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiv
 
 해석은 보수적으로 가져간다. Phase 정규화/차분은 AP autoencoder 학습 안정성과 AP-STFT relation 지표를 크게 개선했다. 하지만 Tx2-Tx8 closed anomaly detection에서는 raw unwrapped phase의 AP-STFT CCA cosine score가 가장 강했다. Linear detrend로 slope를 제거하면 closed AUROC가 0.5094까지 떨어지고, slope-only는 0.6794까지 일부 회복된다. 이는 raw phase의 큰 drift 또는 CFO-like slope 성분이 단순한 reconstruction noise가 아니라 송신 장치 차이를 담는 discriminative signal일 가능성을 시사한다.
 
-따라서 다음 방향은 phase를 무작정 z-score/diff로 정리하는 것이 아니라, raw phase를 유지하되 CFO-like slope와 detrended phase residual을 별도 채널 또는 별도 feature로 분리한 뒤 relation modeling에 투입하는 것이다.
+이 가설을 확인하기 위해 raw/normalized phase, CFO-like slope, detrended residual을 별도 AP channel로 분리하는 AP+ pilot을 추가 수행했다.
+
+### AP+ Phase Channel Decomposition Pilot
+
+AP+ 실험은 AP representation을 기존 `[amplitude, phase]` 2채널에서 `[amplitude, phase_variant, slope_unit, detrend_unit]` 4채널로 확장한다. IQ/STFT encoder는 seed 42 checkpoint를 재사용했고, AP encoder만 pilot 조건으로 다시 학습했다.
+
+실행 명령:
+
+```bash
+python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --variants phase_ap_raw_slope_residual phase_ap_unit_slope_residual phase_ap_center_slope_residual
+```
+
+| Variant | AP channels | AP cal loss | Tx1 AP-STFT CKA | Tx1 AP-STFT CCA | Top Tx1-only candidate | Closed AUROC | Closed F1 | Oracle AUROC | Oracle F1 |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |
+| Raw baseline | raw | 2718.6107 | 0.2814 | 0.4479 | AP-STFT CCA L2 | 0.7673 | 0.5507 | 0.9981 | 0.9697 |
+| AP+ raw+slope+residual | raw, slope_unit, detrend_unit | 66460.9253 | 0.2298 | 0.5193 | AP-STFT CCA Cosine | 0.7121 | 0.3932 | 1.0000 | 0.9756 |
+| AP+ unit+slope+residual | unit, slope_unit, detrend_unit | 16281.3496 | 0.2384 | 0.5317 | AP-STFT CCA L2 | 0.7045 | 0.4408 | 0.9996 | 0.9639 |
+| AP+ center+slope+residual | center_unit, slope_unit, detrend_unit | 14153.1288 | 0.2835 | 0.4539 | AP-STFT CCA Cosine | 0.7664 | 0.5136 | 1.0000 | 0.9677 |
+
+해석: slope/residual을 별도 채널로 제공하면 AP-STFT CCA 평균 상관이 일부 상승하지만, Tx2-Tx8 closed anomaly 성능은 raw baseline을 넘지 못했다. 특히 `center+slope+residual`은 raw baseline과 거의 같은 AUROC까지 회복하지만 F1은 낮다. 따라서 현재 메인 실험은 `raw unwrapped AP + STFT`의 CCA cosine relation을 유지하고, AP+는 논문 본실험 후보라기보다 phase 성분 분석 ablation으로 기록한다.
 
 ### Closed Dataset Test
 
