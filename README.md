@@ -64,6 +64,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 4 Relation Analysis | 완료 | Tx1-only CCA fitting, CKA table 생성 |
 | Phase 4.5 Tx1-only Relation Screening | 완료 | Tx1 train/calibration만으로 AP-STFT relation 후보가 상위 선별됨 |
 | Phase 4.6 AP Phase Ablation Pilot | 완료 | phase scaling/difference는 AE 안정성을 개선했지만 closed anomaly 성능은 raw phase가 유지됨 |
+| Phase 4.7 Phase Slope Decomposition Pilot | 완료 | slope-only는 성능 일부를 회복하고 detrend residual은 크게 약화됨 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -162,19 +163,23 @@ Pilot 조건:
 실행 명령:
 
 ```bash
-python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --variants phase_unwrap_raw_pilot phase_wrapped_unit phase_unwrap_zscore phase_unwrap_diff_unit
+python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --variants phase_unwrap_raw_pilot phase_unwrap_center_unit phase_unwrap_detrend_unit phase_unwrap_trend_unit phase_unwrap_slope_unit phase_wrapped_unit phase_unwrap_zscore phase_unwrap_diff_unit
 ```
 
 | Variant | Phase | AP cal loss | Tx1 AP-STFT CKA | Tx1 AP-STFT CCA | Closed AUROC | Closed F1 | Oracle AUROC | Oracle F1 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Raw pilot | unwrap raw | 111471.6709 | 0.1850 | 0.4525 | 0.7674 | 0.5624 | 1.0000 | 0.9756 |
+| Center unit | center(unwrap) / pi | 319.2510 | 0.1818 | 0.6001 | 0.6238 | 0.4897 | 1.0000 | 0.9917 |
+| Detrend unit | residual after linear detrend / pi | 55.5312 | 0.1821 | 0.5992 | 0.5094 | 0.1896 | 1.0000 | 0.9600 |
+| Trend unit | linear trend / pi | 222.7697 | 0.1450 | 0.5813 | 0.6376 | 0.2601 | 1.0000 | 0.9877 |
+| Slope unit | total linear phase drift / pi | 24136.8817 | 0.2715 | 0.4315 | 0.6794 | 0.2894 | 0.9998 | 0.9562 |
 | Wrapped unit | wrapped / pi | 0.2631 | 0.5465 | 0.6695 | 0.5367 | 0.2154 | 1.0000 | 0.9796 |
 | Unwrap z-score | unwrap z-score | 0.1636 | 0.2935 | 0.6497 | 0.5582 | 0.2310 | 1.0000 | 0.9600 |
 | Unwrap diff unit | diff(unwrap) / pi | 0.2295 | 0.5426 | 0.7640 | 0.5336 | 0.2363 | 1.0000 | 0.9562 |
 
-해석은 보수적으로 가져간다. Phase 정규화/차분은 AP autoencoder 학습 안정성과 AP-STFT relation 지표를 크게 개선했다. 하지만 Tx2-Tx8 closed anomaly detection에서는 raw unwrapped phase의 AP-STFT CCA cosine score가 가장 강했다. 이는 raw phase의 큰 drift 또는 slope 성분이 단순한 reconstruction noise가 아니라 송신 장치 차이를 담는 discriminative signal일 가능성을 시사한다.
+해석은 보수적으로 가져간다. Phase 정규화/차분은 AP autoencoder 학습 안정성과 AP-STFT relation 지표를 크게 개선했다. 하지만 Tx2-Tx8 closed anomaly detection에서는 raw unwrapped phase의 AP-STFT CCA cosine score가 가장 강했다. Linear detrend로 slope를 제거하면 closed AUROC가 0.5094까지 떨어지고, slope-only는 0.6794까지 일부 회복된다. 이는 raw phase의 큰 drift 또는 CFO-like slope 성분이 단순한 reconstruction noise가 아니라 송신 장치 차이를 담는 discriminative signal일 가능성을 시사한다.
 
-따라서 다음 방향은 phase를 무작정 z-score/diff로 정리하는 것이 아니라, raw phase를 유지하되 CFO-like slope/phase residual을 별도 representation으로 분리해 비교하는 것이다.
+따라서 다음 방향은 phase를 무작정 z-score/diff로 정리하는 것이 아니라, raw phase를 유지하되 CFO-like slope와 detrended phase residual을 별도 채널 또는 별도 feature로 분리한 뒤 relation modeling에 투입하는 것이다.
 
 ### Closed Dataset Test
 

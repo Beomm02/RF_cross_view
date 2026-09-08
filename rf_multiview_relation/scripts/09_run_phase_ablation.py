@@ -21,11 +21,24 @@ SCRIPT_ROOT = PROJECT_ROOT / "rf_multiview_relation" / "scripts"
 PHASE_VARIANTS: dict[str, dict[str, Any]] = {
     "phase_unwrap_raw": {"phase_unwrap": True, "phase_transform": "raw"},
     "phase_unwrap_raw_pilot": {"phase_unwrap": True, "phase_transform": "raw"},
+    "phase_unwrap_center_unit": {"phase_unwrap": True, "phase_transform": "center_unit"},
+    "phase_unwrap_detrend_unit": {"phase_unwrap": True, "phase_transform": "detrend_unit"},
+    "phase_unwrap_trend_unit": {"phase_unwrap": True, "phase_transform": "trend_unit"},
+    "phase_unwrap_slope_unit": {"phase_unwrap": True, "phase_transform": "slope_unit"},
     "phase_wrapped_unit": {"phase_unwrap": False, "phase_transform": "unit"},
     "phase_unwrap_zscore": {"phase_unwrap": True, "phase_transform": "zscore"},
     "phase_unwrap_diff_unit": {"phase_unwrap": True, "phase_transform": "diff_unit"},
 }
-DEFAULT_VARIANTS = ["phase_unwrap_raw", "phase_wrapped_unit", "phase_unwrap_zscore", "phase_unwrap_diff_unit"]
+DEFAULT_VARIANTS = [
+    "phase_unwrap_raw",
+    "phase_unwrap_center_unit",
+    "phase_unwrap_detrend_unit",
+    "phase_unwrap_trend_unit",
+    "phase_unwrap_slope_unit",
+    "phase_wrapped_unit",
+    "phase_unwrap_zscore",
+    "phase_unwrap_diff_unit",
+]
 EVAL_METHODS = [
     "ap",
     "concat",

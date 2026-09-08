@@ -34,6 +34,16 @@ def transform_phase_channel(phase: np.ndarray, mode: str = "raw") -> np.ndarray:
         return values - np.float32(np.mean(values))
     if mode == "center_unit":
         return (values - np.float32(np.mean(values))) / np.float32(np.pi)
+    if mode in {"detrend", "linear_detrend"}:
+        return linear_phase_parts(values)[1]
+    if mode in {"detrend_unit", "linear_detrend_unit"}:
+        return linear_phase_parts(values)[1] / np.float32(np.pi)
+    if mode in {"trend", "linear_trend"}:
+        return linear_phase_parts(values)[0]
+    if mode in {"trend_unit", "linear_trend_unit"}:
+        return linear_phase_parts(values)[0] / np.float32(np.pi)
+    if mode in {"slope", "slope_unit"}:
+        return slope_channel(values, unit=mode.endswith("_unit"))
     if mode == "zscore":
         return (values - np.float32(np.mean(values))) / (np.float32(np.std(values)) + np.float32(EPS))
     if mode == "diff":
@@ -41,6 +51,31 @@ def transform_phase_channel(phase: np.ndarray, mode: str = "raw") -> np.ndarray:
     if mode == "diff_unit":
         return (np.diff(values, prepend=values[0]) / np.float32(np.pi)).astype(np.float32)
     raise ValueError(f"Unsupported phase_transform: {mode}")
+
+
+def linear_phase_parts(phase: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    values = np.asarray(phase, dtype=np.float32)
+    if values.size <= 1:
+        zeros = np.zeros_like(values, dtype=np.float32)
+        return zeros, zeros
+    time = np.linspace(-0.5, 0.5, values.size, dtype=np.float32)
+    centered = values - np.float32(np.mean(values))
+    denominator = np.float32(np.sum(time * time)) + np.float32(EPS)
+    slope = np.float32(np.sum(time * centered) / denominator)
+    trend = (slope * time).astype(np.float32)
+    residual = (centered - trend).astype(np.float32)
+    return trend, residual
+
+
+def slope_channel(phase: np.ndarray, unit: bool = True) -> np.ndarray:
+    trend, _ = linear_phase_parts(phase)
+    if trend.size <= 1:
+        value = np.float32(0.0)
+    else:
+        value = np.float32(trend[-1] - trend[0])
+    if unit:
+        value = value / np.float32(np.pi)
+    return np.full_like(np.asarray(phase, dtype=np.float32), value, dtype=np.float32)
 
 
 def build_ap_view(iq_window: np.ndarray, phase_unwrap: bool = True, phase_transform: str = "raw") -> np.ndarray:
