@@ -67,6 +67,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 4.7 Phase Slope Decomposition Pilot | 완료 | slope-only는 성능 일부를 회복하고 detrend residual은 크게 약화됨 |
 | Phase 4.8 AP+ Channel Decomposition Pilot | 완료 | raw/normalized phase, slope, residual을 4채널 AP로 분리했으나 raw 단일 AP 대비 closed 성능 개선은 없음 |
 | Phase 4.9 Seed Robustness Pilot | 완료 | seed 42/123/2026 제한 반복에서 AP-STFT CCA cosine이 closed/oracle 모두 가장 강함 |
+| Phase 4.10 AP-STFT Cause Analysis | 완료 | Tx별 성능 차이는 AP-STFT score median/component shift 크기와 강하게 연동됨 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -243,6 +244,72 @@ python rf_multiview_relation/scripts/10_run_seed_robustness.py --config rf_multi
 
 해석: 제한 반복에서도 `AP-STFT CCA Cosine Direct`가 Concat, signed residual Mahalanobis, compact relation, AP-STFT L2/AbsMean보다 closed AUROC와 F1 모두 높다. 다만 Tx1-only screening의 top candidate는 세 seed 모두 `AP-STFT CCA Abs Mean`이었고, 실제 held-out 성능은 cosine이 더 높았다. 따라서 논문에서는 AP-STFT pair selection은 Tx1-only 근거가 강하지만, cosine metric 선택은 별도 ablation 결과로 정당화하는 편이 안전하다.
 
+### AP-STFT Cause Analysis
+
+`AP-STFT CCA Cosine Direct`를 메인 방식으로 정식화하기 전에 Tx별 성능 차이의 원인과 paired relation 여부를 추가 분석했다.
+
+실행 명령:
+
+```bash
+python rf_multiview_relation/scripts/11_analyze_ap_stft_causes.py --config rf_multiview_relation/configs/default.yaml --phase-max-files-per-split 120 --phase-max-windows-per-file 64
+```
+
+Device별 AP-STFT CCA cosine score shift:
+
+| Device | Median score | Median delta vs Tx1 | AUROC | Cliff's delta |
+| --- | ---: | ---: | ---: | ---: |
+| Tx1 holdout | 0.5473 | 0.0000 | - | - |
+| Tx2 | 0.5765 | 0.0292 | 0.7337 | 0.4674 |
+| Tx3 | 0.5753 | 0.0280 | 0.7172 | 0.4345 |
+| Tx4 | 0.6107 | 0.0633 | 0.8389 | 0.6779 |
+| Tx5 | 0.5804 | 0.0330 | 0.7559 | 0.5118 |
+| Tx6 | 0.5760 | 0.0286 | 0.7194 | 0.4388 |
+| Tx7 | 0.6110 | 0.0637 | 0.8565 | 0.7129 |
+| Tx8 | 0.6191 | 0.0717 | 0.8601 | 0.7202 |
+| Oracle | 1.0745 | 0.5272 | 0.9988 | 0.9977 |
+
+해석: Tx2/Tx3/Tx6은 Tx1 대비 median shift가 약 0.028-0.029 수준이라 score overlap이 크고 어렵다. Tx4/Tx7/Tx8은 median shift가 0.063-0.072로 두 배 이상 커서 잘 분리된다. 즉 device-wise 성능 차이는 AP-STFT relation score가 Tx1 distribution에서 얼마나 멀어졌는지와 직접 연결된다.
+
+CCA component shift 요약:
+
+| Device | Total component shift | Top shifted components | AUROC |
+| --- | ---: | --- | ---: |
+| Tx2 | 0.2060 | c13, c9, c10, c5, c16 | 0.7337 |
+| Tx3 | 0.2519 | c7, c8, c15, c6, c5 | 0.7172 |
+| Tx4 | 0.9885 | c7, c9, c11, c8, c12 | 0.8389 |
+| Tx5 | 0.3277 | c9, c15, c7, c6, c13 | 0.7559 |
+| Tx6 | 0.2463 | c7, c1, c15, c6, c14 | 0.7194 |
+| Tx7 | 1.1007 | c8, c7, c9, c11, c3 | 0.8565 |
+| Tx8 | 1.0852 | c7, c9, c11, c8, c12 | 0.8601 |
+| Oracle | 9.6846 | c12, c1, c5, c15, c7 | 0.9988 |
+
+Tx2-Tx8에서 total component shift와 device-wise AUROC의 Pearson correlation은 `0.9883`이었다. 이 결과는 AP-STFT CCA 성능 차이가 threshold 우연이 아니라 canonical residual shift 크기와 거의 같이 움직인다는 근거다.
+
+Paired relation 검증:
+
+같은 file/window에서 나온 AP와 STFT를 사용한 true pair score와, STFT latent를 무작위로 섞은 shuffled pair score를 비교했다. Tx1에서 true pair가 shuffled pair보다 훨씬 낮아야 한다면, AP-STFT CCA score가 단순한 marginal feature 차이가 아니라 paired relation을 보고 있다는 뜻이다.
+
+| Split | True median | Shuffled median | Gap | AUC true vs shuffled |
+| --- | ---: | ---: | ---: | ---: |
+| Tx1 train | 0.5485 | 1.1020 | 0.5534 | 1.0000 |
+| Tx1 calibration | 0.5481 | 1.0987 | 0.5507 | 1.0000 |
+| Tx1 holdout | 0.5473 | 1.1035 | 0.5562 | 1.0000 |
+| Tx2 | 0.5765 | 1.0996 | 0.5231 | 1.0000 |
+| Tx8 | 0.6191 | 1.0855 | 0.4665 | 1.0000 |
+| Oracle | 1.0745 | 1.0908 | 0.0163 | 0.5523 |
+
+해석: Tx1과 Tx2-Tx8에서는 AP-STFT true pairing 구조가 강하게 존재한다. 다만 anomaly device는 true pair score 자체가 Tx1보다 높게 이동한다. Oracle은 true pair와 shuffled pair 차이가 거의 없어 external dataset에서는 Tx1에서 학습된 AP-STFT relation이 사실상 붕괴되어 있다. 이는 Oracle AUROC가 매우 높은 이유를 설명한다.
+
+Phase slope 보조 분석:
+
+원본 IQ에서 file당 최대 64 windows로 phase slope를 계산했다. 잘 잡히는 Tx4/Tx7/Tx8은 Tx1보다 절대 slope가 작아지는 경향을 보였고, 전체 evaluated files에서 AP-STFT score와 absolute slope의 Spearman correlation은 `-0.5386`이었다. 따라서 score 증가는 단순히 phase slope 크기가 커져서 발생한 것이 아니라, phase drift와 STFT latent 사이의 Tx1 relation이 달라지는 현상으로 해석하는 편이 적절하다.
+
+정리하면 `AP-STFT CCA Cosine Direct`는 다음 세 근거로 메인 방식 후보가 된다.
+
+1. Tx1-only screening에서 AP-STFT pair가 반복적으로 상위에 위치한다.
+2. device-wise 성능 차이가 AP-STFT score median shift 및 canonical component shift와 강하게 연결된다.
+3. shuffled-pair 검증에서 score가 paired AP-STFT relation을 실제로 반영함이 확인된다.
+
 ### Closed Dataset Test
 
 Normal은 Tx1 holdout 100 files, anomaly는 Tx2-Tx8 3500 files combined.
@@ -316,6 +383,7 @@ python rf_multiview_relation/scripts/05_fit_relation_model.py --config rf_multiv
 python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto
 python rf_multiview_relation/scripts/10_run_seed_robustness.py --config rf_multiview_relation/configs/default.yaml --device auto --seeds 42 123 2026 --run-prefix seed_pilot --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --skip-representation-check
+python rf_multiview_relation/scripts/11_analyze_ap_stft_causes.py --config rf_multiview_relation/configs/default.yaml --phase-max-files-per-split 120 --phase-max-windows-per-file 64
 ```
 
 최종 목표:
@@ -347,6 +415,12 @@ outputs/tables/tx1_screened_relation_device_results.csv
 outputs/tables/phase_ablation_summary.csv
 outputs/tables/seed_robustness_results.csv
 outputs/tables/seed_robustness_aggregate.csv
+outputs/tables/ap_stft_device_diagnosis.csv
+outputs/tables/ap_stft_component_shifts.csv
+outputs/tables/ap_stft_component_device_summary.csv
+outputs/tables/ap_stft_pairing_validation.csv
+outputs/tables/ap_stft_phase_slope_device_summary.csv
+outputs/tables/ap_stft_phase_slope_score_correlation.csv
 outputs/tables/main_results.csv
 outputs/tables/device_results.csv
 outputs/scores/file_scores.csv
