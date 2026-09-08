@@ -66,6 +66,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 4.6 AP Phase Ablation Pilot | 완료 | phase scaling/difference는 AE 안정성을 개선했지만 closed anomaly 성능은 raw phase가 유지됨 |
 | Phase 4.7 Phase Slope Decomposition Pilot | 완료 | slope-only는 성능 일부를 회복하고 detrend residual은 크게 약화됨 |
 | Phase 4.8 AP+ Channel Decomposition Pilot | 완료 | raw/normalized phase, slope, residual을 4채널 AP로 분리했으나 raw 단일 AP 대비 closed 성능 개선은 없음 |
+| Phase 4.9 Seed Robustness Pilot | 완료 | seed 42/123/2026 제한 반복에서 AP-STFT CCA cosine이 closed/oracle 모두 가장 강함 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -201,6 +202,47 @@ python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiv
 
 해석: slope/residual을 별도 채널로 제공하면 AP-STFT CCA 평균 상관이 일부 상승하지만, Tx2-Tx8 closed anomaly 성능은 raw baseline을 넘지 못했다. 특히 `center+slope+residual`은 raw baseline과 거의 같은 AUROC까지 회복하지만 F1은 낮다. 따라서 현재 메인 실험은 `raw unwrapped AP + STFT`의 CCA cosine relation을 유지하고, AP+는 논문 본실험 후보라기보다 phase 성분 분석 ablation으로 기록한다.
 
+### Seed Robustness Pilot
+
+`AP-STFT CCA Cosine Direct`가 seed 42 full run에서만 우연히 강했던 것인지 확인하기 위해 seed 42/123/2026 반복 pilot을 수행했다. Full seed 반복도 시도했으나 STFT autoencoder full 학습 비용이 커서, 먼저 동일한 제한 조건의 pilot으로 seed 민감도를 확인했다.
+
+Pilot 조건:
+
+- seeds: 42, 123, 2026
+- Train/calibration split은 seed별 file-level로 재생성
+- Encoder training: Tx1 train 중 80 files, Tx1 calibration 중 20 files
+- Evaluation: split별 최대 120 files
+- Epoch 8, batch size 256
+- Tx1-only CCA, covariance, threshold 원칙 유지
+
+실행 명령:
+
+```bash
+python rf_multiview_relation/scripts/10_run_seed_robustness.py --config rf_multiview_relation/configs/default.yaml --device auto --seeds 42 123 2026 --run-prefix seed_pilot --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --skip-representation-check
+```
+
+`AP-STFT CCA Cosine Direct` seed별 결과:
+
+| Seed | Closed AUROC | Closed Precision | Closed Recall | Closed F1 | Oracle AUROC | Oracle F1 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 42 | 0.7094 | 0.9549 | 0.1512 | 0.2610 | 0.9970 | 0.9672 |
+| 123 | 0.6953 | 0.9813 | 0.3738 | 0.5414 | 1.0000 | 0.9756 |
+| 2026 | 0.6505 | 0.9572 | 0.2929 | 0.4485 | 0.9873 | 0.9435 |
+| Mean ± std | 0.6851 ± 0.0307 | 0.9644 | 0.2726 | 0.4170 ± 0.1428 | 0.9948 ± 0.0066 | 0.9621 ± 0.0166 |
+
+세 seed 평균 비교:
+
+| Method | Closed AUROC | Closed F1 | Oracle AUROC | Oracle F1 |
+| --- | ---: | ---: | ---: | ---: |
+| Concat | 0.6089 ± 0.0055 | 0.0529 ± 0.0098 | 0.8296 ± 0.0399 | 0.0000 ± 0.0000 |
+| CCA Relation, signed residual + MD | 0.6278 ± 0.0045 | 0.0786 ± 0.0023 | 0.9065 ± 0.0646 | 0.5543 ± 0.4829 |
+| CCA Compact Relation | 0.6349 ± 0.0210 | 0.0837 ± 0.0066 | 0.9349 ± 0.0520 | 0.6516 ± 0.4299 |
+| AP-STFT CCA Cosine Direct | 0.6851 ± 0.0307 | 0.4170 ± 0.1428 | 0.9948 ± 0.0066 | 0.9621 ± 0.0166 |
+| AP-STFT CCA L2 Direct | 0.6347 ± 0.0122 | 0.1716 ± 0.0956 | 0.9456 ± 0.0170 | 0.8606 ± 0.1119 |
+| AP-STFT CCA Abs Mean Direct | 0.6404 ± 0.0160 | 0.1469 ± 0.1017 | 0.9609 ± 0.0027 | 0.9282 ± 0.0256 |
+
+해석: 제한 반복에서도 `AP-STFT CCA Cosine Direct`가 Concat, signed residual Mahalanobis, compact relation, AP-STFT L2/AbsMean보다 closed AUROC와 F1 모두 높다. 다만 Tx1-only screening의 top candidate는 세 seed 모두 `AP-STFT CCA Abs Mean`이었고, 실제 held-out 성능은 cosine이 더 높았다. 따라서 논문에서는 AP-STFT pair selection은 Tx1-only 근거가 강하지만, cosine metric 선택은 별도 ablation 결과로 정당화하는 편이 안전하다.
+
 ### Closed Dataset Test
 
 Normal은 Tx1 holdout 100 files, anomaly는 Tx2-Tx8 3500 files combined.
@@ -273,6 +315,7 @@ python rf_multiview_relation/scripts/07_screen_relations.py --config rf_multivie
 python rf_multiview_relation/scripts/05_fit_relation_model.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relation/configs/default.yaml
 python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto
+python rf_multiview_relation/scripts/10_run_seed_robustness.py --config rf_multiview_relation/configs/default.yaml --device auto --seeds 42 123 2026 --run-prefix seed_pilot --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --skip-representation-check
 ```
 
 최종 목표:
@@ -302,6 +345,8 @@ outputs/tables/tx1_relation_screening.csv
 outputs/tables/tx1_screened_relation_results.csv
 outputs/tables/tx1_screened_relation_device_results.csv
 outputs/tables/phase_ablation_summary.csv
+outputs/tables/seed_robustness_results.csv
+outputs/tables/seed_robustness_aggregate.csv
 outputs/tables/main_results.csv
 outputs/tables/device_results.csv
 outputs/scores/file_scores.csv

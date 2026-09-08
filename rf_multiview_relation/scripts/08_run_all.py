@@ -43,7 +43,7 @@ def append_common(cmd: list[str], args: argparse.Namespace) -> list[str]:
         cmd.extend(["--data-root", args.data_root])
     if args.output_dir is not None:
         cmd.extend(["--output-dir", args.output_dir])
-    if args.run_name and Path(cmd[1]).name != "00_audit_dataset.py":
+    if args.run_name and Path(cmd[1]).name not in {"00_audit_dataset.py", "01_verify_representations.py"}:
         cmd.extend(["--run-name", args.run_name])
     return cmd
 
