@@ -68,6 +68,7 @@ Raw RF dataset은 로컬 `data/`에 둔다. `data/`, `outputs/`, checkpoint, lat
 | Phase 4.8 AP+ Channel Decomposition Pilot | 완료 | raw/normalized phase, slope, residual을 4채널 AP로 분리했으나 raw 단일 AP 대비 closed 성능 개선은 없음 |
 | Phase 4.9 Seed Robustness Pilot | 완료 | seed 42/123/2026 제한 반복에서 AP-STFT CCA cosine이 closed/oracle 모두 가장 강함 |
 | Phase 4.10 AP-STFT Cause Analysis | 완료 | Tx별 성능 차이는 AP-STFT score median/component shift 크기와 강하게 연동됨 |
+| Phase 4.11 AP-STFT Marginal Control | 완료 | AP/STFT 단일 및 CCA marginal control보다 paired AP-STFT CCA cosine이 우수 |
 | Phase 5 Relation Model | 완료 | Tx1-only covariance/threshold fitting |
 | Phase 6 Evaluation | 완료 | Tx2-Tx8 closed test 및 Oracle external test 완료 |
 
@@ -310,6 +311,46 @@ Phase slope 보조 분석:
 2. device-wise 성능 차이가 AP-STFT score median shift 및 canonical component shift와 강하게 연결된다.
 3. shuffled-pair 검증에서 score가 paired AP-STFT relation을 실제로 반영함이 확인된다.
 
+### AP-STFT Marginal Control
+
+`AP-STFT CCA Cosine Direct`가 AP 또는 STFT 단일 feature distribution 변화만으로 설명되는지 확인하기 위해 marginal control 실험을 추가했다. 모든 detector/CCA는 Tx1 train만으로 fit했고, threshold는 Tx1 calibration p95로 고정했다.
+
+실행 명령:
+
+```bash
+python rf_multiview_relation/scripts/12_ap_stft_marginal_controls.py --config rf_multiview_relation/configs/default.yaml
+```
+
+Control 비교:
+
+| Method | Closed AUROC | Closed F1 | Oracle AUROC | Oracle F1 |
+| --- | ---: | ---: | ---: | ---: |
+| AP latent MD | 0.5841 | 0.0662 | 0.8155 | 0.2987 |
+| STFT latent MD | 0.5635 | 0.0925 | 0.7150 | 0.0000 |
+| AP CCA marginal MD | 0.6201 | 0.2265 | 0.7939 | 0.5165 |
+| STFT CCA marginal MD | 0.5673 | 0.0737 | 0.7248 | 0.0000 |
+| AP+STFT CCA marginal sum | 0.5761 | 0.0837 | 0.7672 | 0.4624 |
+| AP-STFT raw cosine | 0.5733 | 0.4635 | 0.9922 | 0.9695 |
+| AP-STFT CCA joint MD | 0.6317 | 0.0858 | 0.9396 | 0.8766 |
+| AP-STFT CCA residual MD | 0.6844 | 0.1602 | 0.9765 | 0.9520 |
+| AP-STFT CCA cosine direct | 0.7831 | 0.6219 | 0.9988 | 0.9697 |
+
+`AP-STFT CCA Cosine Direct`는 closed test에서 best marginal control인 `AP CCA marginal MD`보다 AUROC가 `+0.1630` 높았고, Oracle에서는 best marginal control인 `AP latent MD`보다 `+0.1834` 높았다. 이는 AP/STFT 각각의 marginal distribution 변화만으로 현재 성능을 설명하기 어렵다는 근거다.
+
+Device별 relation gain:
+
+| Anomaly | Relation AUROC | Best marginal | Best marginal AUROC | Gain |
+| --- | ---: | --- | ---: | ---: |
+| Tx2 | 0.7337 | AP CCA marginal MD | 0.5727 | +0.1609 |
+| Tx3 | 0.7172 | AP CCA marginal MD | 0.5884 | +0.1288 |
+| Tx4 | 0.8389 | AP CCA marginal MD | 0.6957 | +0.1433 |
+| Tx5 | 0.7559 | AP CCA marginal MD | 0.5845 | +0.1715 |
+| Tx6 | 0.7194 | STFT CCA marginal MD | 0.5891 | +0.1303 |
+| Tx7 | 0.8565 | AP CCA marginal MD | 0.6935 | +0.1629 |
+| Tx8 | 0.8601 | AP CCA marginal MD | 0.6818 | +0.1783 |
+
+Closed dataset에서 AP-STFT relation score와 marginal control score의 Spearman correlation은 낮았다. 예를 들어 AP latent MD `0.1121`, AP CCA marginal MD `0.1016`, AP+STFT CCA marginal sum `-0.0608`이었다. 따라서 proposed score는 단일 view anomaly score의 단순 재표현이라기보다 AP와 STFT 사이의 paired canonical relation 변화를 포착하는 별도 신호로 해석할 수 있다.
+
 ### Closed Dataset Test
 
 Normal은 Tx1 holdout 100 files, anomaly는 Tx2-Tx8 3500 files combined.
@@ -360,6 +401,8 @@ Normal은 Tx1 holdout 100 files, anomaly는 Oracle SigMF 128 files.
 
 원래 main proposal인 `3-pair signed residual + Mahalanobis`만 고집하면 성능이 약하다. 하지만 AP-STFT CCA 관계, 특히 CCA cosine을 방향성 있는 score로 직접 사용하는 경우 Tx2-Tx8과 Oracle에서 뚜렷한 anomaly signal이 확인된다.
 
+추가 marginal control에서도 AP/STFT 단일 latent, CCA projection marginal MD, AP+STFT marginal score, CCA residual MD보다 paired AP-STFT CCA cosine이 더 강했다. 따라서 메인 방식은 단순 feature fusion이나 단일 view anomaly score가 아니라, 같은 RF window에서 AP와 STFT 사이에 형성되는 canonical relation shift를 사용하는 방식으로 정식화하는 것이 가장 자연스럽다.
+
 따라서 다음 논문 방향은 다음처럼 재정립하는 것이 좋다.
 
 ```text
@@ -384,6 +427,7 @@ python rf_multiview_relation/scripts/06_evaluate.py --config rf_multiview_relati
 python rf_multiview_relation/scripts/09_run_phase_ablation.py --config rf_multiview_relation/configs/default.yaml --device auto
 python rf_multiview_relation/scripts/10_run_seed_robustness.py --config rf_multiview_relation/configs/default.yaml --device auto --seeds 42 123 2026 --run-prefix seed_pilot --epochs 8 --batch-size 256 --max-train-files 80 --max-calibration-files 20 --max-files-per-split 120 --skip-representation-check
 python rf_multiview_relation/scripts/11_analyze_ap_stft_causes.py --config rf_multiview_relation/configs/default.yaml --phase-max-files-per-split 120 --phase-max-windows-per-file 64
+python rf_multiview_relation/scripts/12_ap_stft_marginal_controls.py --config rf_multiview_relation/configs/default.yaml
 ```
 
 최종 목표:
@@ -421,6 +465,11 @@ outputs/tables/ap_stft_component_device_summary.csv
 outputs/tables/ap_stft_pairing_validation.csv
 outputs/tables/ap_stft_phase_slope_device_summary.csv
 outputs/tables/ap_stft_phase_slope_score_correlation.csv
+outputs/tables/ap_stft_marginal_control_file_scores.csv
+outputs/tables/ap_stft_marginal_control_results.csv
+outputs/tables/ap_stft_marginal_control_device_results.csv
+outputs/tables/ap_stft_marginal_control_correlations.csv
+outputs/tables/ap_stft_marginal_control_gain.csv
 outputs/tables/main_results.csv
 outputs/tables/device_results.csv
 outputs/scores/file_scores.csv

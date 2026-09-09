@@ -27,6 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-representation-check", action="store_true")
     parser.add_argument("--skip-training", action="store_true")
     parser.add_argument("--skip-relation-screening", action="store_true")
+    parser.add_argument("--skip-marginal-controls", action="store_true")
     parser.add_argument("--screen-top-k", type=int, default=5)
     parser.add_argument("--write-window-scores", action="store_true")
     return parser.parse_args()
@@ -101,6 +102,10 @@ def main() -> None:
     if args.write_window_scores:
         cmd.append("--write-window-scores")
     run(cmd)
+
+    if not args.skip_marginal_controls:
+        cmd = append_common([sys.executable, str(SCRIPT_ROOT / "12_ap_stft_marginal_controls.py")], args)
+        run(cmd)
 
 
 if __name__ == "__main__":
